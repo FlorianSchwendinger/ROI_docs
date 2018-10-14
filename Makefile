@@ -36,6 +36,9 @@ clean:
 clean_all: clean
 	rm -rf _site
 
-sync:
+sync_www:
 	rsync --progress -avuz _site/* /home/florian/work/Optimization/ROI/ROI_R-Forge/www/
+
+sync_git:
+	rsync --progress -avuz --exclude '_site' * /home/florian/work/Optimization/ROI/ROI_docs/
 

@@ -112,7 +112,7 @@ There are several possible ways to contribute to the **ROI** project.
 - If you find **ROI** useful we would be happy to add your particular use
   case to the [Use Cases](use_cases.html) page. To do so you can again raise
   and issue or create a pull request on [GitHub](https://github.com/FlorianSchwendinger/ROI_docs), or send an e-mail 
-  to [roi-commits[at]lists.r-forge.r-project.org](mailto:roi-commits@lists.r-forge.r-project.org). 
+  to [roi[at]shared-files.de](mailto:roi@shared-files.de). 
   The use case should be either written in **Sweave**, **knitr** or **R Markdown**
   and contain an author and a license (e.g. [GNU General Public License version 3](https://en.wikipedia.org/wiki/GNU_General_Public_License)).
 
