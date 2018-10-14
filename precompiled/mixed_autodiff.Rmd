@@ -1,0 +1,73 @@
+---
+title: "How to use automatic differentiation with **ROI**?"
+---
+
+```{r}
+Sys.setenv(ROI_LOAD_PLUGINS = FALSE)
+library(ROI)
+```
+
+The following example is based on 
+[`Automatic Differentiation in R by autodiffr` (Changcheng and Nash and Borchers 2018)](https://non-contradiction.github.io/autodiffr/articles/autodiffr_intro.html) which
+is part of the **autodiffr** documentation.
+
+
+First we load the  package.
+```{r}
+library(autodiffr)
+ad_setup()
+```
+
+Users which want to use **autodiffr** with **ROI** have several options to do
+so. The easiest and recommended way is just to make the gradient function 
+with **autodiffr** and provide the gradient when constructing the optimization
+problem.
+```{r}
+fun <- function(x) sum(x^2L)
+grad <- makeGradFunc(fun)
+hess <- makeHessianFunc(fun)
+
+o <- OP(F_objective(F = fun, n = 3L, G = grad, H = hess))
+s <- ROI_solve(o, solver = "nlminb", start = rnorm(3))
+solution(s)
+```
+
+In general users can change the default differentiation function via `ROI_options`
+but it is not recommended to change the default to **autodiffr**. Since not
+every function works out of the box.
+
+```{r}
+fun0 <- function(x) {
+    stopifnot(is.numeric(x), length(x) == 4L)
+    det(matrix(x^c(1, 2, 1, 3), 2, 2))
+}
+
+x0 <- c(1.2, 1.4, 1.6, 1.8)
+fun0(x0)
+tryCatch(ad_grad(fun0, x0), error = function(e) e)
+```
+
+[Changcheng and Nash and Borchers (2018)](https://non-contradiction.github.io/autodiffr/articles/autodiffr_intro.html) find a way to resolve 
+this problem by replacing `matrix` with `array` in the `fun0()` function.
+```{r}
+fun2 <- function(x) {
+    stopifnot(is.numeric(x), length(x) == 4L)
+    det(array(x^c(1, 2, 1, 3), c(2, 2)))
+}
+
+x0 <- c(1.2, 1.4, 1.6, 1.8)
+fun2(x0)
+ad_grad(fun2, x0)
+```
+
+However this example shows that a function (e.g. `fun0()`) which works perfectly 
+fine in `R` and with **numDeriv**
+```{r}
+library(numDeriv)
+numDeriv::grad(fun0, x0)
+```
+can cause errors in **autodiffr**. Therefore it is not recommended to set 
+**autodiffr** as default option to derive the gradient (via `ROI_option`). 
+Since this is likely to cause errors which are hard to debug.
+
+

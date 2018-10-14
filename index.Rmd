@@ -1,0 +1,154 @@
+---
+title: "ROI - R Optimization Infrastructure"
+output: html_document
+---
+
+<style type="text/css">
+.title {
+  display: none;
+}
+
+#getting-started img {
+  margin-right: 10px;
+}
+
+</style>
+
+<div class="row" style="padding-top: 30px;">
+
+# **ROI** 
+
+The R Optimization Infrastructure (ROI) package provides an extensible 
+infrastructure to model linear, quadratic, conic and general nonlinear 
+optimization problems in a consistent way. 
+
+```{r, eval = FALSE}
+library(ROI)
+```
+
+```{r, echo = FALSE}
+Sys.setenv(ROI_LOAD_PLUGINS = "FALSE")
+suppressPackageStartupMessages(library(ROI))
+```
+
+Furthermore, the infrastructure administers many different solvers, 
+reformulations, problem collections and functions to read and write 
+optimization problems in various formats.
+
+# Extensions
+
+**ROI** provides the modeling capabilities and manages the plugins, the plugins
+add the solvers to **ROI**.
+
+
+### Plugins
+
+````{r, results = 'asis', message = FALSE}
+plugins <- ROI_available_solvers()[,c("Package", "Repository")]
+plugins <- aggregate(Repository ~ Package,  data = plugins, 
+                     FUN = paste, collapse = ", ")
+knitr::kable(plugins, row.names = TRUE)
+```
+
+<!-- 
+| Plugin                        | Objective | Constraints | Bounds | Types | Repository |
+| ----------------------------- | --------- | ----------- | ------ | ----- | ---------- |
+| ROI.plugin.alabama            | F         |             |        |       |            |
+| ROI.plugin.clp                | L         |             |        |       |            |
+| ROI.plugin.cplex              | Q         |             |        |       |            |
+| ROI.plugin.deoptim            | F         |             |        |       |            |
+| ROI.plugin.ecos               | L         |             |        |       |            |
+| ROI.plugin.glpk               | L         |             |        |       |            |
+| ROI.plugin.ipop               | Q         |             |        |       |            |
+| ROI.plugin.lpsolve            | L         |             |        |       |            |
+| ROI.plugin.msbinlp            | L         |             |        |       |            |
+| ROI.plugin.neos               | X, L, Q   | X, L, Q     |        |       |            |
+| ROI.plugin.nloptr             |           |             |        |       |            |
+| ROI.plugin.optimx             |           |             |        |       |            |
+| ROI.plugin.qpoases            |           |             |        |       |            |
+| ROI.plugin.quadprog           |           |             |        |       |            |
+| ROI.plugin.scs                |           |             |        |       |            |
+| ROI.plugin.symphony           |           |             |        |       |            |
+-->
+
+### Models
+
+- [ROI.models.globalOptTests](https://CRAN.R-project.org/package=ROI.models.globalOptTests)
+- [ROI.models.miplib](https://CRAN.R-project.org/package=ROI.models.miplib)
+- [ROI.models.netlib](https://CRAN.R-project.org/package=ROI.models.netlib)
+
+
+
+# Installation
+The [Installation](installation.html) page contains information to assist with the installation 
+of **ROI** and its companion packages.
+
+# Additional resources
+Additional to this web page there exist several resources:
+
+- [ROI - Manual](https://CRAN.R-project.org/package=ROI/ROI.pdf)
+- [ROI - Working paper](http://epub.wu.ac.at/5858/)
+- [ROI.plugin.neos - Introduction](https://CRAN.R-project.org/package=ROI.plugin.neos/vignettes/ROI.plugin.neos_Introduction.pdf)
+
+# Planed extensions
+### Planed plugins (**ROI.plugin.***)   
+
+  - [OSQP](https://osqp.org/) there exist already the **R** package 
+    [osqp](https://cran.r-project.org/package=osqp),
+    [rosqp](https://cran.r-project.org/package=rosqp)
+  - [Couenne](https://projects.coin-or.org/Couenne)
+
+### Planed models (**ROI.model.***)   
+
+  - [QPLIB](http://qplib.zib.de/)
+
+# Contribute
+There are several possible ways to contribute to the **ROI** project.
+
+- Since **ROI** was designed to allow decentralized development anyone is 
+  free and invited to extend **ROI** by creating a new plugin or model collection.
+- The source code of this page is stored on [GitHub](https://github.com/FlorianSchwendinger/ROI_docs) modifications
+  to this page can be suggested by raising an issue or creating a pull request.
+- If you find **ROI** useful we would be happy to add your particular use
+  case to the [Use Cases](use_cases.html) page. To do so you can again raise
+  and issue or create a pull request on [GitHub](https://github.com/FlorianSchwendinger/ROI_docs), or send an e-mail 
+  to [roi-commits[at]lists.r-forge.r-project.org](mailto:roi-commits@lists.r-forge.r-project.org). 
+  The use case should be either written in **Sweave**, **knitr** or **R Markdown**
+  and contain an author and a license (e.g. [GNU General Public License version 3](https://en.wikipedia.org/wiki/GNU_General_Public_License)).
+
+# Citation
+```{asis}
+Theußl, Stefan and Schwendinger, Florian and Hornik, Kurt (2017) ROI: The R Optimization Infrastructure Package. Research Report Series / Department of Statistics and Mathematics, 133. WU Vienna University of Economics and Business, Vienna.
+```
+```
+@techreport{epubwu5858,
+  number = {133},
+  month = {October},
+  author = {Stefan Theu{\ss}l and Florian Schwendinger and Kurt Hornik},
+  address = {Vienna},
+  title = {ROI: The R Optimization Infrastructure Package},
+  type = {Research Report Series / Department of Statistics and Mathematics},
+  institution = {WU Vienna University of Economics and Business},
+  year = {2017},
+  keywords = {optimization, mathematical programming,
+    linear programming, quadratic programming, convex
+    programming, nonlinear programming, mixed integer programming, R},
+  url = {http://epub.wu.ac.at/5858/},
+  abstract = {Optimization plays an important role in many methods routinely 
+    used in statistics, machine learning and data science. Often, 
+    implementations of these methods rely on highly specialized (non-reusable) 
+    optimization algorithms. However, in many instances recent advances, in 
+    particular in the field of convex optimization, make it possible to 
+    conveniently and straightforwardly use modern solvers (reusable) instead
+    with the advantage of enabling broader usage scenarios and thus
+    promoting reusability. This paper introduces the ROI
+    (R Optimization Infrastructure) package which provides an
+    extensible infrastructure to model linear, quadratic, conic and general
+    nonlinear optimization problems in a consistent way. Furthermore, the
+    infrastructure administers many different solvers, reformulations,
+    problem collections and functions to read and write optimization
+    problems in various formats.}
+```
+
+</div>
+

@@ -1,0 +1,26 @@
+name: "ROI - R Optimization Infrastructure"
+navbar:
+  title: "R Optimization Infrastructure"
+  left:
+    - text: "ROI"
+      href: index.html
+    - text: "Installation"
+      href: installation.html
+    - text: "Introduction"
+      href: introduction.html
+    - text: "Use Cases"
+      href: use_cases.html
+    - text: "Mixed topics"
+      href: mixed.html
+    - text: "FAQ"
+      href: faq.html
+    - text: "What's new?"
+      href: news.html
+output:
+  html_document:
+    theme: paper
+    highlight: textmate ## default, tango, pygments, kate, monochrome, espresso, zenburn, haddock, textmate
+    css: styles.css
+    toc: true
+    toc_depth: 2
+    toc_float: true

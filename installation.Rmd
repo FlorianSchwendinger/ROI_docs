@@ -1,0 +1,310 @@
+---
+title: "Installation"
+---
+
+The following contains additional information for the installation 
+of **ROI** and its companion packages.
+
+# **ROI**
+Since **ROI** has no dependencies to external system and only imports 
+libraries written in base **R**, the installation via
+`install.packages("ROI")` should be sufficient on any platform. 
+
+# **ROI plug-ins**
+
+## **ROI.plugin.alabama**
+```{r, eval = FALSE}
+install.packages("ROI.plugin.alabama")
+```
+
+## **ROI.plugin.cbc**
+
+### Unix
+
+[**ROI.plugin.cbc**](https://github.com/dirkschumacher/ROI.plugin.cbc)
+it self doesn't contain compiled code but it imports **rcbc**.
+The [**rcbc**](https://github.com/dirkschumacher/rcbc) package requires 
+the [cbc](https://projects.coin-or.org/Cbc) and 
+the [clp](https://projects.coin-or.org/Clp) library to be installed before
+the installation of **rcbc**. Depending on the distribution, 
+these libraries may be installed via one of the following commands.
+
+
+#### Debian, Ubuntu, Mint and other Debian based distributions
+
+```{bash, eval = FALSE}
+sudo apt-get install coinor-libcbc-dev coinor-libclp-dev
+```
+
+#### Red Hat Enterprise Linux, Fedora, CentOS and similar distributions
+
+```{bash, eval = FALSE}
+sudo yum install coin-or-Cbc-devel coin-or-Clp-devel
+```
+
+#### macOS
+```{bash, eval = FALSE}
+brew tap coin-or-tools/coinor
+brew install cbc
+```
+
+After the installation of the required libraries
+**rcbc** and **ROI.plugin.cbc** may be installed as usual.
+
+```{r, eval = FALSE}
+remotes::install_github("dirkschumacher/rcbc")
+remotes::install_github("dirkschumacher/ROI.plugin.cbc")
+```
+
+### Windows
+```{r, eval = FALSE}
+devtools::install_github("dirkschumacher/rcbc")
+devtools::install_github("dirkschumacher/ROI.plugin.cbc")
+```
+
+## **ROI.plugin.clp**
+```{r, eval = FALSE}
+install.packages("ROI.plugin.clp")
+```
+
+## **ROI.plugin.cplex**
+```{r, eval = FALSE}
+install.packages("ROI.plugin.cplex")
+```
+
+## **ROI.plugin.deoptim**
+```{r, eval = FALSE}
+install.packages("ROI.plugin.deoptim")
+```
+
+## **ROI.plugin.ecos**
+```{r, eval = FALSE}
+install.packages("ROI.plugin.ecos")
+```
+
+## **ROI.plugin.glpk**
+[**ROI.plugin.glpk**](https://cran.r-project.org/package=ROI.plugin.glpk)
+it self doesn't contain compiled code but it imports **Rglpk**.
+The [**Rglpk**](https://cran.r-project.org/package=Rglpk) package requires
+the linear programming kit - development files to be installed before
+the installation of **Rglpk**. Depending on the distribution, 
+the linear programming kit - development files may be installed via one
+of the following commands.
+
+### Unix
+
+#### Debian, Ubuntu, Mint and other Debian based distributions
+
+```{bash, eval = FALSE}
+sudo apt-get install libglpk-dev
+```
+
+#### Red Hat Enterprise Linux, Fedora, CentOS and similar distributions
+
+```{bash, eval = FALSE}
+yum install glpk-devel
+```
+
+#### macOS
+```{bash, eval = FALSE}
+brew install glpk
+```
+
+After the installation of the linear programming kit - development files
+**Rglpk** and **ROI.plugin.glpk** may be installed as usual.
+
+```{r, eval = FALSE}
+install.packages("ROI.plugin.glpk")
+```
+
+### Windows
+```{r, eval = FALSE}
+install.packages("ROI.plugin.glpk")
+```
+
+## **ROI.plugin.gurobi**
+**ROI.plugin.gurobi** imports the **gurobi** package which is available at
+[http://www.gurobi.com](http://www.gurobi.com/). Since the **gurobi** package
+is not on `CRAN` **ROI.plugin.gurobi** is also not available on `CRAN`.
+```{r, eval = FALSE}
+remotes:::install_github("fl0sch/ROI.plugin.gurobi")
+```
+
+## **ROI.plugin.ipop**
+```{r, eval = FALSE}
+install.packages("ROI.plugin.ipop")
+```
+
+## **ROI.plugin.lpsolve**
+```{r, eval = FALSE}
+install.packages("ROI.plugin.lpsolve")
+```
+
+## **ROI.plugin.mosek**
+**ROI.plugin.mosek** imports the **Rmosek** package which is available at
+[http://www.mosek.com](http://www.mosek.com/). There is also an 
+**Rmosek** version on `CRAN` but since the **Rmosek** version on `CRAN`
+is very old we recommend to install the version available from
+[http://www.mosek.com](http://www.mosek.com/).
+
+```{r, eval = FALSE}
+remotes:::install_github("fl0sch/ROI.plugin.mosek")
+```
+
+## **ROI.plugin.msbinlp**
+```{r, eval = FALSE}
+install.packages("ROI.plugin.msbinlp")
+```
+
+## **ROI.plugin.neos**
+
+### Unix
+
+[**ROI.plugin.neos**](https://cran.r-project.org/package=ROI.plugin.neos)
+it self doesn't contain compiled code but it imports xml2 and curl.
+The [**xml2**](https://cran.r-project.org/package=xml2) package requires that
+the `libxml2` development library is installed. Depending on the distribution, 
+this library may is installed via one of the following commands.
+
+### Unix
+
+#### Debian, Ubuntu, Mint and other Debian based distributions
+```{bash, eval = FALSE}
+sudo apt-get install libxml2-dev 
+```
+
+#### Red Hat Enterprise Linux, Fedora, CentOS and similar distributions
+```{r, eval = FALSE}
+sudo yum install libxml2-devel
+```
+
+#### macOS
+
+After the installation of the the `libxml2` development libraries
+**xml2** may be installed as usual.
+
+```{r, eval = FALSE}
+install.packages("xml2")
+```
+
+The [**curl**](https://cran.r-project.org/package=curl) package requires that
+the `curl` development library is installed. Depending on the distribution, 
+this library may is installed via one of the following commands.
+
+### Unix
+
+#### Debian, Ubuntu, Mint and other Debian based distributions
+```{bash, eval = FALSE}
+sudo apt-get install libcurl4-openssl-dev
+```
+
+#### Red Hat Enterprise Linux, Fedora, CentOS and similar distributions
+```{r, eval = FALSE}
+sudo yum install libcurl-devel
+```
+
+#### macOS
+
+After the installation of the the `libxml2` development libraries
+**xmle** can be installed.
+```{r, eval = FALSE}
+install.packages("curl")
+```
+
+After the **curl** and **xml2** packages are installed **ROI.plugin.neos**
+can be installed.
+```{r, eval = FALSE}
+install.packages("ROI.plugin.neos")
+```
+
+### Windows
+
+```{r, eval = FALSE}
+install.packages("ROI.plugin.neos")
+```
+
+## **ROI.plugin.nloptr**
+```{r, eval = FALSE}
+install.packages("ROI.plugin.nloptr")
+```
+
+## **ROI.plugin.optimx**
+```{r, eval = FALSE}
+install.packages("ROI.plugin.optimx")
+```
+
+## **ROI.plugin.qpoases**
+```{r, eval = FALSE}
+install.packages("ROI.plugin.qpoases")
+```
+
+## **ROI.plugin.quadprog**
+```{r, eval = FALSE}
+install.packages("ROI.plugin.quadprog")
+```
+
+## **ROI.plugin.scs**
+```{r, eval = FALSE}
+install.packages("ROI.plugin.scs")
+```
+
+## **ROI.plugin.symphony**
+
+### Unix
+
+[**ROI.plugin.symphony**](https://cran.r-project.org/package=ROI.plugin.symphony)
+it self doesn't contain compiled code but it imports **Rsymphony**.
+The [**Rsymphony**](https://cran.r-project.org/package=Rsymphony) package requires
+the SYMPHONY libraries and headers to be installed before
+the installation of **Rsymphony**. Depending on the distribution, 
+the SYMPHONY libraries and headers may be installed via one
+of the following commands.
+
+#### Debian, Ubuntu, Mint and other Debian based distributions
+
+```{bash, eval = FALSE}
+sudo apt install coinor-libsymphony-dev
+```
+
+#### Red Hat Enterprise Linux, Fedora, CentOS and similar distributions
+
+```{bash, eval = FALSE}
+sudo yum install coin-or-SYMPHONY-devel
+```
+
+#### macOS
+```{bash, eval = FALSE}
+brew tap coin-or-tools/coinor
+brew install symphony
+```
+
+After the installation of the SYMPHONY libraries and headers
+**ROI.plugin.symphony** may be installed as usual.
+
+```{r, eval = FALSE}
+install.packages("ROI.plugin.symphony")
+```
+
+### Windows
+
+```{r, eval = FALSE}
+install.packages("ROI.plugin.symphony")
+```
+
+# **ROI models**
+
+## **ROI.models.netlib**
+```{r, eval = FALSE}
+install.packages("ROI.models.netlib")
+```
+
+## **ROI.models.miplib**
+```{r, eval = FALSE}
+install.packages("ROI.models.miplib")
+library(ROI.models.miplib)
+miplib_download_metainfo()
+miplib_download_benchmark(quiet = FALSE)
+```
+
+
+

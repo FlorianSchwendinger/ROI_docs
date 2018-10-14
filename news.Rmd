@@ -1,0 +1,27 @@
+---
+title: "What's new?"
+---
+
+# 
+
+# 2018-06-19 **ROI.plugin.neos**
+**ROI.plugin.neos** was releasd on CRAN. More information about
+**ROI.plugin.neos** can be found in the 
+[manual](https://CRAN.R-project.org/package=ROI.plugin.neos/ROI.plugin.neos.pdf)
+and the 
+[vignette](https://CRAN.R-project.org/package=ROI.plugin.neos/vignettes/ROI.plugin.neos_Introduction.pdf).
+
+
+# 2018-04-23 **ROI.plugin.qpoases**
+**ROI.plugin.qpoases** was releasd on CRAN. It provides a **`C++`** interface 
+to [qpOASES](https://projects.coin-or.org/qpOASES/) which is 
+part of the Computational Infrastructure for Operations Research (COIN-OR) project.
+**ROI.plugin.qpoases** can be used to solve quadratic problems and due to the 
+flipping bounds strategy, **ROI.plugin.qpoases** can also be used to find 
+critical points of non-convex QP problems. For more information for 
+**`qpOASES`** we refer to the [**qpOASES**-Manual](https://www.coin-or.org/qpOASES/doc/3.2/manual.pdf),
+more information about
+**ROI.plugin.qpoases** can be found in the 
+[**ROI.plugin.qpoases**-Manual](https://CRAN.R-project.org/package=ROI.plugin.qpoases/ROI.plugin.qpoases.pdf).
+
+

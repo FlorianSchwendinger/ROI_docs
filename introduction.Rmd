@@ -1,0 +1,673 @@
+---
+title: "Modeling with **ROI**"
+---
+
+```{r, echo = FALSE}
+is_gurobi_installed <- any(installed.packages()[, "Package"] == "ROI.plugin.gurobi")
+```
+
+```{r}
+Sys.setenv(ROI_LOAD_PLUGINS = "FALSE")
+library(ROI)
+library(ROI.plugin.glpk)
+library(ROI.plugin.qpoases)
+library(ROI.plugin.ecos)
+library(ROI.plugin.scs)
+library(ROI.plugin.alabama)
+library(ROI.plugin.lpsolve)
+```
+
+```{r, eval = is_gurobi_installed}
+library(ROI.plugin.gurobi)
+```
+
+# Constructors
+
+## Optimization Problem 
+```{r}
+str(OP)
+```
+
+## Objective
+### Linear objective
+```{r}
+str(L_objective)
+```
+
+$$1 x + 2 y + 3 z$$
+
+```{r}
+lo <- L_objective(c(1, 2, 3), c("x", "y", "z"))
+```
+
+### Quadratic objective
+
+```{r}
+str(Q_objective)
+```
+
+$$\frac{1}{2} (x_1^2 + x_2^2 + x_3^2) + 1 x_1 + 2x_2 + 3x_3$$
+
+```{r}
+qo <- Q_objective(diag(3), c(1, 2, 3), c("x_1", "x_2", "x_3"))
+```
+
+### Functional objective}
+```{r}
+str(F_objective)
+```
+
+$$x_1^2 + x_2^2$$
+
+```{r}
+fo <- F_objective(F = function(x) sum(x^2), n = 2, 
+                  G = function(x) 2*x, names = c("x_1", "x_2"))
+```
+
+## Constraints
+### Linear constraints
+```{r}
+str(L_constraint)
+```
+
+\[
+\nonumber
+\begin{array}{rrrrrrr}
+3 x & + & 4 y & + & 1 z & \leq & 90 \\
+1 x & + & 0 y & + & 2 z & \geq & 5  \\
+1 x & + & 1 y & + & 0 z &   =  & 2
+\end{array}
+\]
+
+```{r}
+lc <- L_constraint(L = rbind(c(3, 4, 1), c(1, 0, 2), c(1, 1, 0)),
+                   dir = c("<=", ">=", "=="), rhs = c(90, 5, 2),
+                   names = c("x", "y", "z"))
+```
+
+### Quadratic constraints
+```{r}
+str(Q_constraint)
+```
+
+$$\frac{1}{2} (x^2 + y^2) + 1x + 2y \leq 3$$
+
+```{r}
+qc1 <- Q_constraint(Q = diag(2), L = 1:2, dir = "<=", 
+                    rhs = 3, names = c("x", "y"))
+```
+
+\[
+\begin{array}
+x^2 + y^2 + 3x + 1y & \leq & 3 \nonumber \\
+x + y & \leq & 4 \nonumber \\
+\frac{1}{2} (3x^2 + 3y^2 + 2xy) + 2x + 5y & \leq & 9 \nonumber
+\end{array}
+\]
+
+```{r}
+qc2 <- Q_constraint(Q = list(diag(2, 2), NULL, matrix(c(3, 1, 1, 3), 2)), 
+                    L = rbind(c(3, 1), c(1, 1), c(2, 5)),
+                    dir = c("<=", "<=", "<="),
+                    rhs = c(3, 4, 9), names = c("x", "y"))
+```
+
+### Functional constraints
+```{r}
+str(F_constraint)
+```
+
+\[
+\begin{array}
+x^2 & \leq & 2 \nonumber \\
+y^2 & \leq & 4 \nonumber
+\end{array}
+\]
+
+```{r}
+fc1 <- F_constraint(F = function(x) x^2, dir = c("<=", "<="), rhs = c(2, 4),
+                    J = function(x) diag(x = 2, nrow = 2) * x,
+                    names = c("x", "y"))
+```
+
+or equivalently
+
+```{r}
+fc2 <- F_constraint(F = list(function(x) x[1]^2, function(x) x[2]^2), 
+                    dir = c("<=", "<="), rhs = c(2, 4),
+                    J = list(function(x) rbind(c(2, 0) * x), 
+                             function(x) rbind(c(0, 2) * x)),
+                    names = c("x", "y"))
+
+## TODO: create an example
+## x <- OP(L_objective(c(1, 1)), fc1, maximum=TRUE)
+## x <- OP(L_objective(c(1, 1)), fc2, maximum=TRUE)
+## solution(ROI_solve(x, start=c(0, 1), solver="alabama"))
+```
+
+## Bounds
+### Variable bounds
+By default the variable bounds are set to  $0 \leq x_i \leq \infty \text{ for all } i = 1, ..., n.$
+
+```{r}
+str(V_bound)
+```
+$$ -3 \leq x_1 \leq 3, \ -\infty \leq x_2 \leq 7, \ -9 \leq x_3 \leq \infty $$
+
+```{r}
+vb <- V_bound(li = 1:3, ui = 1:3, lb = c(-3, -Inf, -9), ub = c(3, 7, Inf))
+```
+
+# Basic examples
+## Linear programming (LP)
+### Example 1
+\[
+\begin{array}{rrrrr}
+\text{minimize}
+& 7 x_1 & + & 8 x_2 \\
+\text{subject to}
+& 3 x_1 & + & 4 x_2 &  =   9 \\
+& 2 x_1 & + & 1 x_2 & \geq 3
+\end{array}
+\]
+
+$$ -100 \leq x_1, x_2, \leq 100$$
+
+```{r}
+lp  <- OP(objective = L_objective(c(7, 8), names=c("x", "y")),
+          constraints = L_constraint(L = rbind(c(3, 4), c(2, 1)), 
+                                     dir = c("==", ">="), rhs = c(9, 3)),
+          bounds = V_bound(li = 1:2, ui = 1:2, 
+                           lb = c(-100, -100), ub = c(100, 100)))
+ROI_applicable_solvers(lp)
+(sol <- ROI_solve(lp, solver = "glpk"))
+solution(sol)
+```
+
+The solution can be accessed via the function \code{solution},
+where    
+
+```{r}
+solution(sol)
+solution(sol, type = "primal")
+```
+
+gives the primal solution, 
+
+```{r}
+solution(sol, type = "dual")
+```
+
+the dual solution, 
+
+```{r}
+solution(sol, type = "msg")
+```
+
+the original message returned from the solver.
+
+
+### **Example 2**
+$$\begin{array}{rrrrrrr}
+\text{maximize}
+& 7 x_1 & + & 3 x_2 & + & 1 x_3 & \\
+\text{subject to}
+& 6 x_1 & + & 4 x_2 & + & 5 x_3 & \leq 60 \\
+& 8 x_1 & + &   x_2 & + & 2 x_3 & \leq 80 \\
+& 9 x_1 & + & 1 x_2 & + & 7 x_3 & \leq 70 
+\end{array}
+$$
+$$x_1, x_2, x_3 \geq 0$$
+
+```{r}
+lp <- OP(objective = L_objective(c(7, 1, 3), c("x", "y", "z")),
+         constraints = L_constraint(L = rbind(c(6, 4, 5), c(8, 0, 2), c(9, 1, 7)),
+                                    dir = c("<=", "<=", "<="),
+                                    rhs = c(60, 80, 70)),
+         maximum = TRUE)
+(sol <- ROI_solve(lp))
+solution(sol)
+```
+
+## Mixed integer linear programming (MILP)
+$$\begin{array}{rrrrrrr}
+\text{maximize}
+& 7 x_1 & + & 3 x_2 & + & 1 x_3 & \\
+\text{subject to}
+& 6 x_1 & + & 4 x_2 & + & 5 x_3 & \leq 60 \\
+& 8 x_1 & + &   x_2 & + & 2 x_3 & \leq 80 \\
+& 9 x_1 & + & 1 x_2 & + & 7 x_3 & \leq 70 
+\end{array}
+$$
+$$x_1, x_3 \in \mathbb{Z}_{\geq 0}$$
+$$x_2 \geq 0$$
+
+```{r}
+A <- rbind(c(6, 4, 5), c(8, 0, 2), c(9, 1, 7))
+milp <- OP(objective = L_objective(c(7, 1, 3), c("x", "y", "z")),
+           constraints = L_constraint(L = rbind(c(6, 4, 5), c(8, 0, 2), c(9, 1, 7)),
+                                      dir = c("<=", "<=", "<="),
+                                      rhs = c(60, 80, 70)),
+           types = c("I", "C", "I"), 
+           maximum = TRUE)
+(sol <- ROI_solve(milp))
+solution(sol)
+```
+
+## Quadratic programming
+### Quadratic objective with linear constraints (QP)
+
+$$
+\begin{array}
+\text{minimize}   & & x_1 & + & 2x_2 & + & 3x_3 &  +   & \frac{1}{2} (x_1^2 + x_2^2 + x_3^2)  \\
+\text{subject to} & & x_1 & + &  x_2 &   &      & \geq & 1 \nonumber \\
+                  & &     &   &  x_2 & + &  x_3 & \geq & 2 \nonumber \\
+                  & & x_1 &   &      & + &  x_3 & \geq & 3 \nonumber \\
+\end{array}
+$$
+
+```{r}
+qp <- OP(Q_objective(diag(3), c(1, 2, 3), c("x", "y", "z")),
+         L_constraint(L = rbind(c(1, 1, 0), c(0, 1, 1), c(1, 0, 1)), 
+                      dir = c(">=", ">=", ">="), rhs = c(1, 2, 3)))
+(sol <- ROI_solve(qp, solver = "qpoases"))
+solution(sol)
+```
+
+### Quadratic objective with quadratic constraints (QCQP)
+$$
+\text{maximize} \ \ 90 x_1 + 110 x_2 + 160 x_3 - \frac{1}{2} (x_1^2 + x_2^2 + x_3^2)
+$$
+$$
+\begin{array}{rrrrr}
+\text{subject to} & x_1^2 + x_2^2 + 4 x_3     & \leq & 4 & \\
+                  & x_2^2 + x_3^2 + x_1 + x_3 & \leq & 3 & \\
+                  & x_1^2 + x_3^2 + 2 x_1 x_3 & \leq & 2 & \\
+                  & x_1, x_2, x_3 \geq 0      &      &   &
+\end{array}
+$$
+
+```{r}
+qcqp <- OP(Q_objective(-diag(3), c(90, 110, 160), c("x", "y", "z")),
+           Q_constraint(Q = list(rbind(c(2, 0, 0), c(0, 2, 0), c(0, 0, 0)),
+                                 rbind(c(0, 0, 0), c(0, 2, 0), c(0, 0, 2)),
+                                 rbind(c(2, 0, 2), c(0, 0, 0), c(2, 0, 2))),
+                        L = rbind(c(0, 0, 4), c(1, 0, 1), c(0, 0, 0)),
+                        dir = rep("<=", 3), rhs = c(4, 3, 2)),
+           maximum = TRUE)
+```
+```{r, eval = is_gurobi_installed}
+(sol <- ROI_solve(qcqp, solver = "gurobi"))
+solution(sol)
+```
+
+or equivalently
+
+```{r, eval = is_gurobi_installed}
+qc1 <- Q_constraint(Q = rbind(c(2, 0, 0), c(0, 2, 0), c(0, 0, 0)),
+                    L = c(0, 0, 4), dir = "<=", rhs = 4)
+qc2 <- Q_constraint(Q = rbind(c(0, 0, 0), c(0, 2, 0), c(0, 0, 2)),
+                    L = c(1, 0, 1), dir = "<=", rhs = 3)
+qc3 <- Q_constraint(Q = rbind(c(2, 0, 2), c(0, 0, 0), c(2, 0, 2)),
+                    L = NULL, dir = "<=", rhs = 2)
+qcqp <- OP(Q_objective(-diag(3), c(90, 110, 160), c("x", "y", "z")),
+           c(qc1, qc2, qc3), maximum = TRUE)
+
+(sol <- ROI_solve(qcqp, solver = "gurobi"))
+solution(sol)
+```
+
+Check how tight the bounds are.
+
+```{r}
+sapply(as.function(constraints(qcqp)), function(F) F(solution(sol)))
+```
+
+## Conic programming (CP)
+### Second-order cone programming (SOCP)
+$$\text{maximize } \ \ x + y$$
+$$\text{subject to } \ \ \sqrt{x^2 + y^2} \leq \sqrt{2}$$
+$$x, y \geq 0$$
+
+```{r}
+socp1 <- OP(objective = L_objective(c(1, 1), names = c("x", "y")),
+            constraints = C_constraint(rbind(c(0, 0), c(-1, 0), c(0, -1)),
+                                       cones = K_soc(3), 
+                                       rhs = c(sqrt(2), 0, 0)),
+            maximum = TRUE)
+(sol <- ROI_solve(socp1))
+solution(sol)
+```
+
+### Positive semidefinite programming (SDP)
+$$
+\begin{array}{rl}
+\text{minimize}   & x_1 + x_2 - x_3 \\
+\text{subject to} &
+x_1
+\begin{pmatrix}
+10 & 3 \\
+3  & 10
+\end{pmatrix}
++
+x_2
+\begin{pmatrix}
+6  & -4 \\
+-4 & 10
+\end{pmatrix}
++
+x_3
+\begin{pmatrix}
+8  &  1 \\
+1  &  6
+\end{pmatrix}
+\preceq
+\begin{pmatrix}
+ 16  & -13 \\
+-13  &  60
+\end{pmatrix}
+\\
+& x_1, x_2, x_3 \geq 0
+\nonumber
+\end{array}
+$$
+
+```{r}
+A1 <- rbind(c(10, 3), c(3, 10))
+A2 <- rbind(c(6, -4), c(-4, 10))
+A3 <- rbind(c(8, 1), c(1, 6))
+A4 <- rbind(c(16, -13), c(-13, 60))
+psd <- OP(objective = L_objective(c(1, 1, -1)),
+          constraints = C_constraint(L = vech(A1, A2, A3), 
+                                     cones = K_psd(3),
+                                     rhs = vech(A4)))
+(sol <- ROI_solve(psd))
+solution(sol)
+as.matrix(solution(sol, "psd")[[1]])
+```
+
+The following example taken from the [CVXOPT homepage](http://cvxopt.org/userguide/coneprog.html#semidefinite-programming).
+
+$$
+\begin{array}{rl}
+\text{minimize}   & x_1 - x_2 + x_3 \\
+\text{subject to} &
+x_1 \
+\begin{pmatrix}
+ -7 & -11 \\
+-11 &   3
+\end{pmatrix}
++ x_2 \
+\begin{pmatrix}
+  7 & -18 \\
+-18 &   8
+\end{pmatrix}
++ x_3 \
+\begin{pmatrix}
+ -2 &  -8 \\
+ -8 &   1
+\end{pmatrix}
+\ \preceq \
+\begin{pmatrix}
+ 33 &  -9 \\
+ -9 &  26
+\end{pmatrix} 
+\ \\
+&
+x_1 \
+\begin{pmatrix}
+-21 & -11 &   0 \\
+-11 &  10 &   8 \\
+  0 &   8 &   5
+\end{pmatrix}
++ x_2 \
+\begin{pmatrix}
+  0 &  10 &  16 \\
+ 10 & -10 & -10 \\
+ 16 & -10 &   3
+\end{pmatrix}
++ x_3 \
+\begin{pmatrix}
+ -5 &   2 & -17 \\
+  2 &  -6 &   8 \\
+-17 &   8 &   6
+\end{pmatrix}
+\ \preceq \
+\begin{pmatrix}
+ 14 &   9 &  40 \\
+  9 &  91 &  10 \\
+ 40 &  10 &  15
+\end{pmatrix}
+\ \\
+& x_1, x_2, x_3 \in \mathbb{R}
+\end{array}
+\nonumber
+$$
+
+```{r}
+obj <- c(1, -1, 1)
+A1 <- matrix(c(-7, -11, -11,  3), 2)
+A2 <- matrix(c( 7, -18, -18,  8), 2)
+A3 <- matrix(c(-2,  -8,  -8,  1), 2)
+A4 <- matrix(c(33,  -9,  -9, 26), 2)
+B1 <- matrix(c(-21, -11,  0, -11,  10,   8,  0,    8, 5), 3)
+B2 <- matrix(c(  0,  10,  16, 10, -10, -10,  16, -10, 3), 3)
+B3 <- matrix(c( -5,   2, -17,  2,  -6,   8, -17,   8, 6), 3)
+B4 <- matrix(c( 14,   9,  40,  9,  91,  10,  40,  10,15), 3)
+rhs <- c(vech(A4), vech(B4))
+
+psd <- OP(objective = obj,
+          constraints = C_constraint(L = rbind(vech(A1, A2, A3), vech(B1, B2, B3)), 
+                                     cones = K_psd(c(3, 6)), rhs = rhs),
+          bounds = V_bound(li=1:3, lb=rep(-Inf, 3)))
+
+(sol <- ROI_solve(psd, solver = "scs"))
+solution(sol)
+lapply(solution(sol, type="psd"), as.matrix)
+```
+
+### Exponential cone
+$$
+\begin{array}
+\mathcal{K}_{exp} &=&
+            \{(x, y, z) | y  > 0, y e^{\frac{x}{y}} \leq z \} \cup
+            \{(x, 0, z) | x \leq 0, z \geq 0\} \\
+\mathcal{K}_{exp}^* &=&
+            \{(u, v, w) | u < 0, -ue^\frac{v}{u} \leq ew\} \cup
+            \{(0, v, w) | v \geq 0, w \geq 0\}
+\end{array}
+$$
+
+#### Primal exponential cone
+$$
+\begin{array}
+\text{maximize}   & x + y + z \\
+\text{subject to} & y   e^{\frac{x}{y}} \leq z \\
+& x \geq 0, y > 0, z \in [0, e]
+\end{array}
+$$
+
+```{r}
+expp <- OP(objective = L_objective(c(1, 1, 1)),
+           constraints = C_constraint(diag(-1, 3), cones = K_expp(1), 
+                                      rhs = rep(0, 3)),
+           bounds = V_bound(li = 2, lb = 1e-12, ui = 3, ub = exp(1)),
+           maximum = TRUE)
+(sol <- ROI_solve(expp, tol=1e-8, solver="scs"))
+solution(sol)
+```
+
+#### Dual exponential cone
+$$
+\begin{array}
+\text{minimize}   & u + v + w \\
+\text{subject to} & -u e^{\frac{v}{u}} \leq ew \\
+& u \in [-1, 0], y, z \geq 0
+\end{array}
+$$
+
+```{r}
+expd <- OP(objective = L_objective(c(1, 1, 1), names = c("u", "v", "w")),
+           constraints = C_constraint(diag(x=-1, 3), cones = K_expd(1), 
+                                      rhs = rep(0, 3)), 
+           bounds = V_bound(li = 1, lb = -1, ui = 1, ub = 0, nobj = 3L))
+(sol <- ROI_solve(expd))
+solution(sol)
+```
+
+
+### Power cone
+$$
+\begin{array}
+\mathcal{K}_{pwr}^\alpha &=& 
+                \{(x, y, z) | x^\alpha y^{1-\alpha} \geq |z|, x, y \geq 0\},
+                \text{ where } \alpha \in [0, 1] \\
+\left(\mathcal{K}_{pwr}^\alpha\right)^* &=&
+                \left\{(u, v, w) | \left(\frac{u}{a}\right)^\alpha \left(\frac{v}{1-a}\right)^{(1-a)} 
+                \geq |w|, u \geq 0, v \geq 0 \right\} 
+\end{array}
+$$
+
+#### Primal power cone
+$$
+\begin{array}
+\text{minimize}   & x + y \\
+\text{subject to} & \sqrt{x} * \sqrt{y} \geq z \\
+& x, y \geq 0, z = 4
+\end{array}
+$$
+
+```{r}
+powp <- OP(objective = L_objective(c(1, 1, 0), names = c("x", "y", "z")), 
+           constraints = C_constraint(diag(-1, 3), cones = K_powp(0.5), rhs = rep(0, 3)),
+           bounds = V_bound(li = 3, ui = 3, lb = 4, ub = 4))
+(sol <- ROI_solve(powp))
+solution(sol)
+```
+
+#### Dual power cone
+
+$$
+\begin{array}
+\text{minimize}   & u + v \\
+\text{subject to} & \sqrt{2 u} * \sqrt{2 v} \geq 4 \\
+& u, v \geq 0, z = 4
+\end{array}
+$$
+
+```{r}
+powd <- OP(objective = L_objective(c(1, 1, 0), names = c("x", "y", "z")), 
+           constraints = C_constraint(diag(-1, 3), cones = K_powd(0.5), rhs = rep(0, 3)),
+           bounds = V_bound(li = 3, ui = 3, lb = 4, ub = 4))
+(sol <- ROI_solve(powd))
+solution(sol)
+```
+
+
+## Nonlinear Programming
+The quadratic problem from above can also be solved by a general purpose solver.
+
+```{r}
+(sol <- ROI_solve(qcqp, solver = "alabama", start = double(3)))
+solution(sol)
+```
+
+or equivalently
+
+```{r}
+f <- function(x) {
+    90 * x[1] + 110 * x[2] + 160 * x[3] - 1 / 2 * (x[1]^2 + x[2]^2 + x[3]^2)
+}
+g <- function(x) {
+    c((x[1]^2 + x[2]^2 + 4 * x[3]),
+      (x[2]^2 + x[3]^2 + x[1] + x[3]),
+      (x[1]^2 + x[3]^2 + 2 * x[1] * x[3]))
+}
+nlp <- OP(F_objective(f, n=3), 
+          F_constraint(g, dir = rep("<=", 3), rhs = c(4, 3, 2)),
+          maximum = TRUE)
+(sol <- ROI_solve(nlp, solver = "alabama", start = double(3)))
+solution(sol)
+```
+
+or equivalently
+
+```{r}
+nlp <- OP(Q_objective(-diag(3), c(90, 110, 160), c("x", "y", "z")), 
+          F_constraint(g, dir = rep("<=", 3), rhs = c(4, 3, 2)),
+          maximum = TRUE)
+(sol <- ROI_solve(nlp, solver = "alabama", start = double(3)))
+solution(sol)
+```
+
+or equivalently
+
+```{r}
+nlp <- OP(F_objective(f, n=3), 
+          Q_constraint(Q = list(rbind(c(2, 0, 0), c(0, 2, 0), c(0, 0, 0)),
+                                rbind(c(0, 0, 0), c(0, 2, 0), c(0, 0, 2)),
+                                rbind(c(2, 0, 2), c(0, 0, 0), c(2, 0, 2))),
+                       L = rbind(c(0, 0, 4), c(1, 0, 1), c(0, 0, 0)),
+                       dir = rep("<=", 3), rhs = c(4, 3, 2)),
+          maximum = TRUE)
+(sol <- ROI_solve(nlp, solver = "alabama", start = double(3)))
+solution(sol)
+```
+
+# Read / Writing optimization problems
+Optimization problems are commonly stored and shared in specialized 
+plain text files. For LP and MIP the file formats `'mps'`, `'lp'`,
+`'sif'` and `'freemps'` are commonly used. 
+
+## Read LP / MILP
+
+```{r}
+ROI_registered_reader()
+```
+
+To read the capri example from the netlib connection the following code can be used.
+
+```{r}
+tmpfile <- tempfile()
+con <- gzcon(url("http://www.zib.de/koch/perplex/data/netlib/mps/capri.mps.gz"))
+writeLines(readLines(con), tmpfile)
+close(con)
+(capri <- read.op(tmpfile, type="mps_fixed", "lpsolve"))
+(sol <- ROI_solve(capri))
+```
+
+## Write LP / MILP
+```{r}
+ROI_registered_writer()
+```
+
+```{r}
+tmpfile <- tempfile()
+write.op(milp, tmpfile, type = "lp_lpsolve")
+cat(readLines(tmpfile), sep="\n")
+```
+
+
+# Test collections
+## NETLIB-LP
+The software repository `NETLIB` contains among many other software also
+a linear programming test collection.
+
+```{r}
+library("ROI.models.netlib")
+netlib()
+problem_name <- "boeing1"
+netlib("metainfo")[problem_name, -(2:5)]
+(model <- netlib(problem_name))
+(x <- ROI_solve(model))
+```
+
+## MILP
+```{r}
+library("ROI.models.miplib")
+miplib("air04")
+```
+
+# Options
+
+

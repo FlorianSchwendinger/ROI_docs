@@ -1,0 +1,5 @@
+---
+title: "Mixed topics"
+---
+
+## [Use automatic differentiation with **ROI**](mixed_autodiff.html)

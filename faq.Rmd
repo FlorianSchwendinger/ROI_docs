@@ -1,0 +1,16 @@
+---
+title: "Frequently asked questions"
+---
+
+## Why **ROI** loads so slow?
+**ROI** loads all the plug-ins automatically this takes time one can
+avoid this by setting the environment variable `ROI_LOAD_PLUGINS` to `FALSE`
+`Sys.setenv(ROI_LOAD_PLUGINS = "FALSE")`. The main reason why the loading 
+of the package takes so much time is that many optimization solvers use
+the **Matrix** package which takes quite some time to load.
+In the long run we will try remove this overhead by replacing the
+**Matrix** package with **slam** not only in the plug-ins but also
+in the wrapped packages.
+
+
+
