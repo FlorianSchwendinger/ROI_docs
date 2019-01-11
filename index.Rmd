@@ -122,32 +122,16 @@ Theußl, Stefan and Schwendinger, Florian and Hornik, Kurt (2017) ROI: The R Opt
 ```
 ```
 @techreport{epubwu5858,
-  number = {133},
-  month = {October},
-  author = {Stefan Theu{\ss}l and Florian Schwendinger and Kurt Hornik},
-  address = {Vienna},
-  title = {ROI: The R Optimization Infrastructure Package},
-  type = {Research Report Series / Department of Statistics and Mathematics},
+  number      = {133},
+  month       = {October},
+  author      = {Stefan Theu{\ss}l and Florian Schwendinger and Kurt Hornik},
+  address     = {Vienna},
+  title       = {ROI: The R Optimization Infrastructure Package},
+  type        = {Research Report Series / Department of Statistics and Mathematics},
   institution = {WU Vienna University of Economics and Business},
-  year = {2017},
-  keywords = {optimization, mathematical programming,
-    linear programming, quadratic programming, convex
-    programming, nonlinear programming, mixed integer programming, R},
-  url = {http://epub.wu.ac.at/5858/},
-  abstract = {Optimization plays an important role in many methods routinely 
-    used in statistics, machine learning and data science. Often, 
-    implementations of these methods rely on highly specialized (non-reusable) 
-    optimization algorithms. However, in many instances recent advances, in 
-    particular in the field of convex optimization, make it possible to 
-    conveniently and straightforwardly use modern solvers (reusable) instead
-    with the advantage of enabling broader usage scenarios and thus
-    promoting reusability. This paper introduces the ROI
-    (R Optimization Infrastructure) package which provides an
-    extensible infrastructure to model linear, quadratic, conic and general
-    nonlinear optimization problems in a consistent way. Furthermore, the
-    infrastructure administers many different solvers, reformulations,
-    problem collections and functions to read and write optimization
-    problems in various formats.}
+  year        = {2017},
+  url         = {http://epub.wu.ac.at/5858/},
+}
 ```
 
 </div>

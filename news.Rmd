@@ -2,7 +2,8 @@
 title: "What's new?"
 ---
 
-# 
+# 2018-12-12 **Portfolio Optimization - Use Case**
+Thank you to [Laura Vana](https://bach.wu.ac.at/d/research/ma/10862/#publications.) for contributing a use case about portfolio optimization!
 
 # 2018-06-19 **ROI.plugin.neos**
 **ROI.plugin.neos** was releasd on CRAN. More information about

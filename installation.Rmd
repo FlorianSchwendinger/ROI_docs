@@ -244,6 +244,7 @@ install.packages("ROI.plugin.quadprog")
 ```
 
 ## **ROI.plugin.scs**
+
 ```{r, eval = FALSE}
 install.packages("ROI.plugin.scs")
 ```
@@ -273,6 +274,7 @@ sudo yum install coin-or-SYMPHONY-devel
 ```
 
 #### macOS
+
 ```{bash, eval = FALSE}
 brew tap coin-or-tools/coinor
 brew install symphony
@@ -302,8 +304,9 @@ install.packages("ROI.models.netlib")
 ```{r, eval = FALSE}
 install.packages("ROI.models.miplib")
 library(ROI.models.miplib)
-miplib_download_metainfo()
-miplib_download_benchmark(quiet = FALSE)
+miplib_download_metainfo("http://miplib2010.zib.de/download/miplib2010_all.solu")
+miplib_download_benchmark("http://miplib2010.zib.de/download/miplib2010-benchmark.tgz",
+    quiet = FALSE)
 ```
 
 

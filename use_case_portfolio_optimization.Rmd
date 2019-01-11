@@ -1,5 +1,907 @@
 ---
-title: "Portfolio Optimization"
+title: "Portfolio Optimization in ROI"
+author: 
+- "Laura Vana 
+- [Email](mailto:laura.vana@wu.ac.at)"
+date: "December 4, 2018"
+output:
+  html_document:
+    df_print: paged
 ---
 
-TODO
+# Introduction
+
+The purpose of this vignette is to demonstrate a sample of portfolio optimization problems that can be solved by using the ROI package. 
+This vignette is based on joint work with Florian Schwendinger and Ronald Hochreiter which was presented at RFinance 2016, Chicago, USA, May 2016.
+
+If previously no ROI version was installed, one should at least install the two plugins `ROI.plugin.glpk`, `ROI.plugin.alabama` and `ROI.plugin.quadprog` to run the examples below.
+
+```{r, message=F}
+## NOTE: (Rglpk needs libglpk-dev on Debian/Ubuntu ("sudo apt-get install libglpk-dev"))
+
+if (!require("ROI")) install.packages("ROI"); library("ROI")
+
+if (!require("ROI.plugin.glpk")) install.packages("ROI.plugin.glpk"); library("ROI.plugin.glpk")
+
+if (!require("ROI.plugin.quadprog")) install.packages("ROI.plugin.quadprog"); library("ROI.plugin.quadprog")
+
+if (!require("ROI.plugin.alabama")) install.packages("ROI.plugin.alabama"); library("ROI.plugin.alabama")
+```
+
+Several R functions are created to implement the typical objectives and constraints used for portfolio optimization.
+All functions require a `data.frame` `r_mat` of returns. The mathematical formulation of the objectives and constraints is presented below.
+The default optimization in ROI is minimization. Hence for all maximization problems the argument `maximum = TRUE` in the `OP()` function must be specified.
+
+<br>
+
+### [Objectives](#objectives)  implemented as R functions
+
+Name                                        | Arguments                      |   Objectives                       | Max/Min | Type
+--------------------------------------------| -------------------------------| ---------------------------------- | --------|------
+[`reward_objective`           ](#rewardo)   | `(r_mat)                     ` | Portfolio return/reward            | max     | LP
+[ `markowitz_objective`       ](#markowitzo)| `(r_mat)                     ` | Variance of portfolio              | min     | QP
+[`mad_objective          `    ](#mado)      | `(r_mat)                     ` | Mean Absolute Deviation            | min     | LP
+[`downside_var_objective `    ](#downvaro)  | `(r_mat)                     ` | Lower semi-variance of portfolio   | min     | QP
+[`downside_mad_objective `    ](#downmado)  | `(r_mat)                     ` | Lower semi-mean absolute deviation | min     | LP
+[`cvar_objective         `    ](#cvaro)     | `(r_mat, alpha, probs = NULL)` | Conditional Value-at-Risk          | min     | LP
+[`minimax_young_objective`    ](#minimaxo)  | `(r_mat)                     ` | Minimax portfolio                  | max     | LP 
+[`quadratic_utility_objective`](#quaduo)    | `(r_mat, lambda = 2)            `          | Quadratic Utility                  | max     | LP 
+[`sharpe_objective       `    ](#sharpeo)   | `(r_mat, rf = 0)             ` | Sharpe ratio                       | max     | QP 
+[`omega_objective        `    ](#omegao)    | `(r_mat, tau = 0)            ` | Omega                              | max     | LP 
+
+<br>
+
+### [Constraints](#constraints) implemented as R functions
+
+Name            | Arguments                              |   Constraints                                                        | Type
+--------------- | -------------------------------------- | -------------------------------------------------------------------- | ----
+[`budget_constraint`](#budgetc) | `(r_mat, dir = "==", rhs = 1)`| Budget constraint,i.e., sum of the portfolio equals budget B (default B=`rhs`=1)| LP
+[`group_constraint` ](#groupc)  | `(r_mat, index, coef.index = 1, dir = "==", rhs) `   | Group constraint applied only the the `index` elements of $x$       | LP 
+[`turnover_constraint   ` ](#turnoverc)    | `(r_mat, x0 = NULL, dir = "<=", rhs = 100) ` | Constraint on the turnover  from some initial weights $x_0$   | LP 
+[`cardinality_constraint`](#cardc)  | `(r_mat, dir = "<=", rhs = 100)` | Cardinality            | MILP
+[`reward_constraint     `](#rewardc) | `(r_mat, dir = ">=", rhs = 0)             ` | Target return constraint                                                    | LP
+[`markowitz_constraint  `](#markc)   | `(r_mat, dir = "<=", rhs = 1000)` | Constraint on variance of portfolio $x^{\top}Qx \leq q^2$                                               | QP
+[`cvar_constraint       ` ](#cvarc)  | `(r_mat, alpha, probs = NULL, dir = "<=", rhs = 100)` | Constraints on the conditional Value-at-Risk                                            | LP
+
+
+
+# Objective functions {#objectives} 
+We consider a portfolio of assets with random returns. We denote the portfolio
+choice vector by $x$ and by $r$ the vector of random returns. 
+$N$ denotes the number of assets in the portfolio while $S$ is the number of scenarios in the scenarios set.
+
+## Maximize expected return {#rewardo}
+$$ \max_{x \in \mathbb{R}^N} \hat \mu^\top x $$
+where $\hat \mu$ is the vector of estimated mean asset returns.
+
+In ROI we define a function which returns a linear objective is `L_objective` (note that the minus turns the maximization into a minimization problem):
+
+```{r}
+reward_objective <- function(r_mat) {
+    objective <- L_objective(colMeans(r_mat))
+    list(objective = objective)
+}
+```
+(see [Example 1](#rewardex1), [Example 12](#rewardex2), [Example 13](#rewardex3)).
+
+## Minimize variance {#markowitzo} 
+The objective of the minimum of the variance portfolio is given by:
+\[\min_{x \in \mathbb{R}^N} x^\top Q x\]
+\[Q = \mathbb{C}ov(r)\]
+
+```{r}
+markowitz_objective <- function(r_mat) {
+    objective <- Q_objective(Q = 2 * cov(r_mat), 
+                             L = rep(0, NCOL(r_mat)))
+    list(objective = objective)
+}
+```
+(see [Example 2](#markex1), [Example 3](#markex2)).
+
+## Minimize mean absolute deviation {#mado}
+The minimization of the mean absolute deviation can be written as a linear problem. 
+$$
+\begin{eqnarray*}
+\min_{x\in \mathbb{R}^N, y\in \mathbb{R}^S, z\in \mathbb{R}^S}&& \frac{1}{S} \sum_{s = 1}^S (y_s + z_s)\\
+s.t.&&y_s - z_s = (r_{s} - \hat \mu)^\top x,\\
+&& y_s \geq 0, z_s \geq 0.
+\end{eqnarray*}
+$$
+Note that the bounds $y_s\geq 0$ and $z_s\geq 0$ must not be additionally specified as these are the default in ROI.
+
+```{r}
+mad_objective <- function(r_mat){
+    x.names <- colnames(r_mat)
+    N <- NCOL(r_mat)
+    S <- nrow(r_mat)
+    mu <- colMeans(r_mat)
+    Amat <-  cbind(sweep(as.matrix(r_mat), 2,  mu), - diag(S), diag(S))
+    var.names <- c(x.names, 
+                   paste0("y_mad_aux", seq_len(S)),
+                   paste0("z_mad_aux", seq_len(S)))
+    
+    constraint <-  L_constraint(L = Amat, dir = rep("==", S), 
+                                rhs = rep(0, S), 
+                                names = var.names)
+
+    objective <- L_objective(L = c(rep(0, N), rep(1/S, 2 * S)))
+    
+    list(objective = objective, constraint = constraint)
+}
+```
+(See [Example 4](#madex1))
+
+## Minimize lower semi-variance {#downvaro}
+A downside risk measure is the lower semi-variance, which is the expected squared deviation from the mean, 
+calculated over those points that are no greater than the mean. 
+Only returns that are below the mean 
+contribute to the portfolio risk. Let $r_s$ denote the vector of random returns of the $N$ assets in scenario $s$. 
+The problem can be formulated as (using the auxiliary variable $z\in \mathbb{R}^S$):
+$$\min_{x\in \mathbb{R}^N} \frac{1}{S} \sum_{s = 1}^S \mathrm{max}(\hat\mu^\top x - r_s^\top x, 0)^2.$$
+The problem can be reformulated as a QP:
+$$
+\begin{eqnarray*}
+\min_{x\in \mathbb{R}^N, z\in \mathbb{R}^S}&& \frac{1}{S} \sum_{s = 1}^S z_s^2\\
+s.t.&&z_s \geq (\hat\mu - r_s)^\top x)\\
+&& z_s \geq 0.
+\end{eqnarray*}
+$$
+
+```{r}
+downside_var_objective <- function(r_mat, x.names = NULL) {
+    x.names <- colnames(r_mat)
+    N <- NCOL(r_mat)
+    S <- NROW(r_mat)
+    mu <- colMeans(r_mat)
+    Amat <- cbind(sweep(as.matrix(r_mat), 2, mu), diag(S))
+    var.names <- c(x.names, paste0("z_dvar_aux", seq_len(S)))
+    
+    constraint <- L_constraint(L = Amat, dir = rep(">=", S), 
+                               rhs = rep(0, S), 
+                               names = var.names)
+    objective <- Q_objective(
+             Q = 2 * diag(c(rep(1e-05, N), rep(1/S, S))),
+             L = rep(0, N + S))
+    
+    list(objective = objective, constraint = constraint)
+}
+```
+(see [Example 5](#downvarex1)).
+
+## Minimize lower semi-absolute deviation {#downmado}
+Let $r_s$ denote the vector of random returns of the $N$ assets in scenario $s$. The downside risk measure given by the expected absolute deviation from the mean,  calculated over those points that are no greater than the mean is given by:
+$$\frac{1}{S} \sum_{s = 1}^S \vert \mathrm{max}(\hat\mu^\top x - r_s^\top x, 0) \vert$$
+The minimization of this risk measure can be reformulated as a linear problem:
+$$
+\begin{eqnarray*}
+\min_{x\in \mathbb{R}^N, z\in \mathbb{R}^S}&& \frac{1}{S} \sum_{s = 1}^S z_s,\\
+s.t.&& z_s \geq (\hat\mu - r_s)^\top x\\
+&& z_s \geq 0.
+\end{eqnarray*}
+$$
+
+```{r}
+downside_mad_objective <- function(r_mat){
+    x.names <- colnames(r_mat)
+    N <- NCOL(r_mat)
+    S <- NROW(r_mat)
+    mu <- colMeans(r_mat)
+    Amat <- cbind(sweep(as.matrix(r_mat), 2, mu), diag(S))
+    var.names <- c(x.names, paste0("z_dmad_aux", seq_len(S)))
+    
+    constraint <- L_constraint(L = Amat, dir = rep(">=", S),
+                               rhs = rep(0, S), 
+                               names = var.names)
+    
+    objective  <- L_objective(L = c(rep(0, N), rep(1/S,  S)))
+    
+    list(objective = objective, constraint = constraint)    
+}
+```
+(see [Example 6](#downmadex1)).
+
+## Minimize conditional value at risk {#cvaro}
+
+The conditional value at risk/expected shortfall is the average of the losses  that exceed the $\alpha$-quantile of the loss distribution, also called $\alpha$ Value-at-Risk (VaR).
+Defining the loss distribution as minus of the return of the portfolio, the problem can be formulated as follows:
+$$
+\begin{eqnarray*}
+\min_{x\in \mathbb{R}^N, z\in \mathbb{R}^S, \gamma\in \mathbb{R}}& \gamma + \frac{1}{(1-\alpha)} \sum_{s = 1}^S p_s z_s\\
+s.t.\ &z_s \geq - r_s^\top x - \gamma,\\
+&z_s \geq 0,
+\end{eqnarray*}
+$$
+where VaR is a minimizer of the function over $\gamma$ and $p=(p_1, \dots, p_S)$ is a vector of probabilities associated with the scenarios.
+
+```{r}
+cvar_objective <- function(r_mat, alpha, probs = NULL) {
+  x.names <- colnames(r_mat)
+  N <- NCOL(r_mat)
+  S <- NROW(r_mat)
+  mu <- colMeans(r_mat)
+  if (is.null(probs)) probs <- rep(1/S, S)
+  if (alpha < 0.5) alpha <- 1 - alpha
+  
+  Amat <- cbind(as.matrix(r_mat),  diag(S), 1)
+  var.names <- c(x.names, paste0("z_cvar_aux", seq_len(S)), "gamma")
+  
+  ## set bounds for gamma (-Inf, Inf) 
+  bnds <- ROI::V_bound(li = c(N + S + 1), lb = c( -Inf),
+                       ui = c(N + S + 1), ub = c(  Inf))
+  
+  constraint <- L_constraint(L = Amat, dir = rep(">=", S), 
+                            rhs = rep(0, S), 
+                            names = var.names)
+
+  objective <- L_objective(c(rep(0, N), probs/(1 - alpha), 1))
+
+  list(objective = objective, constraint = constraint, bounds = bnds)
+}
+```
+Note that if no value is specified for $p_1, \cdots, p_S$ the default is equal weights.
+
+(see [Example 7](#cvarex1), [Example 14](#cvarex3)).
+
+## Minimax Portfolio {#minimaxo}
+The optimal portfolio is defined as that one that minimizes the maximum loss over all past historical periods, subject to a restriction on the minimum acceptable average return across all observed periods of time. 
+The minimax portfolio maximizes the minimum gain
+and can be seen as a limiting case of CVaR for $\alpha \rightarrow 1$.
+Let $M_p=\min_s r_s^\top x$ denote the minimum gain of the portfolio.
+$$
+\begin{eqnarray*}
+\max_{x \in \mathbb{R}^N, M_p\in \mathbb{R}}&&  M_p\\
+s.t.&% r_s^\top x - M_p \geq 0.
+\end{eqnarray*}
+$$
+Young, M.R., 1998. A minimax portfolio selection rule with linear programming solution. _Management science_, 44(5), pp.673-683.
+
+```{r}
+minimax_young_objective <- function(r_mat){
+    x.names <- colnames(r_mat)
+    N <- NCOL(r_mat)
+    S <- NROW(r_mat)
+    Amat <- cbind(as.matrix(r_mat), -1)
+    
+    bnds <- ROI::V_bound(li = c(N + 1), lb = c( -Inf),
+                          ui = c(N + 1), ub = c(  Inf))
+    constraint <- L_constraint(L = Amat, dir=rep(">=", S), rhs=rep(0, S), 
+                                      names=c(x.names,  "mp_aux"))
+  
+    objective <- L_objective(c(rep(0, N), 1))
+  
+    list(objective = objective, constraint = constraint, bounds = bnds)     
+}
+```
+(see [Example 8](#minimaxex1)).
+
+## Maximize quadratic utility {#quaduo}
+Let $\lambda$ denote the risk aversion parameter.
+Typical risk aversion parameters lie between 2 and 4. 
+Then the quadratic utility is given by:
+\begin{eqnarray*}
+\max_{x\in\mathbb{R}^N}&&  \hat \mu^\top x - \frac{\lambda}{2} x^\top Q x
+\end{eqnarray*}
+
+```{r}
+quadratic_utility_objective <- function(r_mat, lambda = 2){
+    objective <- Q_objective(Q = - lambda * cov(r_mat), 
+                             L = colMeans(r_mat))
+    list(objective = objective)
+}
+```
+(see [Example 9](#quaduex1)).
+
+## Maximize Sharpe ratio {#sharpeo}
+
+Let $r_f$ denote the risk free rate (when not specified is set by default to zero).
+The Sharpe ratio of a random return of an asset $\tilde r$  is defined as:
+$$ \frac{\mathbb{E}(\tilde r)- r_f}{\sqrt{\mathbb{V}ar(\tilde r)}} $$
+The budget normalization constraint is applied and the problem can be formulated as a QP:
+$$
+\begin{eqnarray*}
+\max_{y\in \mathbb{R}^N, \kappa\in \mathbb{R}}& -  y^\top Q y\\
+s.t.&(\hat\mu - r_f \mathit{1})^\top y = \text{1},\\
+& \mathit{1}^\top y = \kappa,\\
+& \kappa > 0.
+\end{eqnarray*}
+$$
+The optimal solution is given by $x^* = y^* / \kappa^*$. 
+
+```{r}
+sharpe_objective <- function(r_mat, rf = 0){
+    N <- NCOL(r_mat)
+    S <- NROW(r_mat)
+    mu <- colMeans(r_mat)
+    Amat <- rbind(c(mu - rf, 0),
+                  c(rep(0, N), 1),
+                  c(rep(1, N), -1))
+    var.names <- c(paste0("y_sharpe_aux", seq_len(N)), "kappa_sharpe")
+    
+    constraint <- L_constraint(L = Amat, dir = c("==", ">", "=="),
+                               rhs = c(1, 0, 0), names = var.names)
+    
+    mat <- matrix(0, ncol = N + 1, nrow = N + 1)
+    mat[1:N, 1:N] <- 2 * cov(r_mat)
+    mat[N + 1, N + 1] <-  1e-04
+
+    objective <- Q_objective(Q = - mat, L = c(rep(0, N), 0))
+  
+    list(objective = objective, constraint = constraint)     
+}
+```
+(see [Example 10](#sharpeex1)).
+
+## Maximize Omega {#omegao}
+The Omega Ratio is a risk-return performance measure of an investment asset, portfolio, or strategy. 
+The Omega Ratio, introduced in 2002 by Keating and Shadwick, is defined as the probability weighted ratio of gains versus losses for some threshold return target $\tau$.
+$$\Omega(\tilde r) = \frac{\int_\tau^{+\infty}\left(1 - F(r)\right)\mathrm{d}r}{\int_{-\infty}^\tau F(r)\mathrm{d}r} $$
+where $F(r)$ denotes the cumulative distribution function of $\tilde r$.
+The maximization of $\Omega(\tilde r)$ can be formulated as an linear problem (note that the  budget normalization constraint and the target return constraint are already part of the model formulation).
+\begin{eqnarray*}
+\max_{y\in \mathbb{R}^N, u\in \mathbb{R}^S, z\in \mathbb{R}}&  \hat \mu^\top y - \tau z\\
+s.t.\ & u_s \geq \tau - r_s^\top y , \\
+             & u_i\geq 0,\\ 
+             & \mathit{1}^\top u = 1,\\ 
+             & \mathit{1}^\top y = z,\\ 
+             & \hat \mu^\top y \geq \tau z,\\
+             & z \geq 0  .
+\end{eqnarray*}
+The Omega optimal portfolio is given by  $x^* = y^* /z^*$, where $z$ is the homogenizing variable. If not explicitly specified, the default for the threshold is $\tau = 0$.
+
+```{r}
+omega_objective <- function(r_mat, tau = 0){
+  ## variables y_1, ... y_N, u_1, .., u_S, z
+  N <- NCOL(r_mat)
+  S <- NROW(r_mat)
+  mu <- colMeans(r_mat)
+  
+  Amat <- rbind(cbind(as.matrix(r_mat), diag(S), 0),# u_s >= tau - r_s'y
+                c(rep(0, N), rep(1, S),  0), # sum(u) = 1
+                c(rep(1, N), rep(0, S), -1), # sum(y) = z
+                c(mu,        rep(0, S), - tau),
+                c(rep(0, N), rep(0, S),  1)) # mu'y  >= tau * z
+  var.names <- c(paste0("y_omega_aux", seq_len(N)),
+                 paste0("u_omega_aux", seq_len(S)), 
+                 "z_omega")
+  constraint <-  L_constraint(L = Amat,  
+                              dir = c(rep(">=", S), "==", "==", ">=", ">"),
+                              rhs = c(rep(tau, S), 1, 0, 0, 1e-05), 
+                              names=var.names)
+  objective  <- L_objective(L = c(mu, rep(0, S), -tau))
+  
+  list(objective = objective, constraint = constraint)    
+  ## x* <- y*/z*
+}
+```
+(see [Example 11](#omegaex1)).
+
+# Constraints {#constraints}
+
+##  Box constraints
+
+Can be set by the argument `bounds` in `OP()`. Note that the default in ROI is $0 \leq x_i \leq \infty$. 
+
+## Budget constraint {#budgetc}
+$$\sum_{i=1}^N x_i = B \qquad \sum_{i=1}^N x_i \leq B_u \qquad \sum_{i=1}^N x_i \geq B_l.$$
+Budget normalization constraint is obtained for B = 1 (default).
+
+```{r}
+budget_constraint <- function(r_mat, dir = "==", rhs = 1) {
+    x.names <- colnames(r_mat)
+    L_constraint(L = rep(1, NCOL(r_mat)), 
+                 dir = dir,  rhs = rhs, names = x.names)
+}
+```
+## Group constraints {#groupc}
+Group constraints are linear constraints which apply to only some elements of the portfolio choice vector $x$:
+$$ ax_i + bx_j = c $$
+where the $=$ can be replaced by inequalities.
+
+```{r}
+group_constraint <- function(r_mat, index, coef.index = 1, dir = "==", rhs) {
+  ## index = (i, j)
+  ## coef.index = c(a,b)
+  ## rhs = c
+  x.names <- colnames(r_mat)
+  N <- NCOL(r_mat)
+  L <- rep(0, N)
+  L[index] <- coef.index
+  L_constraint(L = L, dir = dir, rhs = rhs, names = x.names)
+}
+
+```
+(see [Example 1](#rewardex1), [Example 12](#rewardex2)).
+
+## Turnover constraint {#turnoverc}
+For a target turnover $L$ and some initial weights $x_0$, the turnover contraint is $$\sum_{i=1}^N \vert x_i - x_{i0}\vert \leq L.$$ 
+This can be reformulated in terms of auxiliary variables
+$y^+, y^- \in \mathbb{R}^{+N}$ such that 
+\begin{eqnarray*}
+&&y^+_i- y_i^- = x_i - x_{0i}\\
+&&\sum_{i=1}^N (y_i^+ + y_i^-)\leq L\\
+&&y^+ \geq 0, \, y^-\geq 0
+\end{eqnarray*}
+If no initial weights are specified, the default is equal weights. Note: does not work out of the box with Omega and Sharpe objectives.
+
+```{r}
+turnover_constraint <- function(r_mat, x0 = NULL, dir = "<=", rhs = 100) {
+    x.names <- colnames(r_mat)
+    N <- NCOL(r_mat)
+    S <- NROW(r_mat)
+    if (is.null(x0)) x0 <- rep(1/N, N)
+    Amat <- cbind(diag(N), - diag(N), diag(N))
+    var.names <- c(x.names,  
+                   paste0("y_plus_aux", seq_len(N)), 
+                   paste0("y_minus_aux", seq_len(N)))
+    
+    rbind(L_constraint(L = Amat, dir = rep("==", N), rhs = x0, 
+                       names = var.names),
+          L_constraint(c(rep(0, N), rep(1, N), rep(1, N) ), 
+                       dir = dir, rhs = rhs, names = var.names))
+}
+```
+(see [Example 12](#rewardex2)).
+
+## Cardinality constraint {#cardc}
+The cardinality constraint assigns bounds $P_{min}$ and $P_{max}$ on the number of assets in a portfolio. Binary auxiliary variables $z\in \mathbb{R}^N$ are introduced such that $P_{min} \leq \sum_{i=1}^N z_i\leq P_{max}$ and $x_i - z_i \leq 0$. 
+
+```{r}
+cardinality_constraint <- function(r_mat, dir = "<=", rhs = 100) {
+  x.names <- colnames(r_mat)
+  N <- NCOL(r_mat)
+  Amat <- cbind(diag(N), -diag(N))
+  var.names <- c(x.names, paste0("z_card_aux", seq_len(N)))
+  cat("Variable types for z_card_aux must be set to binary.\n")
+  rbind(L_constraint(L = Amat, dir = rep("<=", N), 
+                     rhs = rep(0, N), names = var.names), 
+        L_constraint(L = c(rep(0, N), rep(1, N)), dir = dir,  
+                     rhs = rhs, names = var.names))
+}
+```
+(see [Example 14](#cvarex2)).
+
+## Target return constraint {#rewardc}
+Also typical objective functions can be used as constraints. For example, the expected return must not fall below a value $\tau$:
+$$\hat\mu^\top x \geq \tau$$
+Note: does not work with Sharpe or Omega (it is included in both Sharpe and Omega maximization problems).
+
+```{r}
+reward_constraint <- function(r_mat, dir = ">=", rhs = 0) {
+  x.names <- colnames(r_mat)
+  L_constraint(L = colMeans(r_mat), dir = dir,  
+               rhs = rhs, names = x.names)
+}
+```
+(see [Example 3](#markex1), [Example 6](#downmadex1)).
+
+## Risk constraints -- Variance {#markc}
+Typically constraints of the form $x^\top Q x \leq q^2$. Note however that this is a quadratic constraint and needs appropriate solvers (e.g., in ROI.plugin.alabama).
+Note: does not work with Omega.
+
+```{r}
+markowitz_constraint <- function(r_mat, dir = "<", rhs = 1000) {
+    x.names <- colnames(r_mat)
+    N <- NCOL(r_mat)
+    Q_constraint(Q = 2 * cov(r_mat), L = rep(0, N), 
+                 dir = dir, rhs = rhs, names=x.names)
+}
+```
+(see [Example 13](#rewardex3)).
+
+## Risk constraints -- CVaR {#cvarc}
+Typically CVaR$(x, \alpha) \leq q$. 
+Note: does not work with Omega and Sharpe.
+
+```{r}
+cvar_constraint <- function(r_mat, alpha, probs = NULL, dir = "<=", rhs = 100) {
+  x.names <- colnames(r_mat)
+  N <- NCOL(r_mat)
+  S <- NROW(r_mat)
+  if (alpha < 0.5) alpha <- 1 - alpha
+  if (is.null(probs)) probs <- rep(1/S, S)
+  
+  Amat <- cbind(as.matrix(r_mat), diag(S), 1)
+  var.names <- c(x.names, paste0("z_cvar_aux", seq_len(S)), "gamma")
+  # set bounds for gama
+  bnds <- ROI::V_bound(li = c(N + S + 1), lb = c( -Inf),
+                       ui = c(N + S + 1), ub = c(  Inf))
+  rbind(L_constraint(L = Amat, dir = rep(">=", S), 
+                     rhs=rep(0, S), names = var.names), 
+        L_constraint(c(rep(0, N), rep(1 / ((1 - alpha) * S), S), 1), 
+                     dir = dir, rhs = rhs, names = var.names))
+}    
+```
+(see [Example 12](#rewardex2)).
+
+
+# Data 
+For illustration purposes daily log returns for the past 180 days of the 30 companies included in the 2018 Dow Jones Industrial Average will be used. 
+
+```{r, results = 'hide', message=FALSE}
+if (!require("quantmod")) install.packages("quantmod"); library("quantmod")
+Tickers     <- c("MMM", "AXP","AAPL", "BA","CAT","CVX","CSCO", "KO", "DWDP", "XOM",
+                 "GS","HD", "IBM", "INTC", "JNJ", "JPM","MCD","MRK","MSFT",
+                 "NKE", "PFE","PG",
+                 "TRV", "UNH","UTX", "VZ", "V", "WMT", "WBA", "DIS")
+
+cached_file <- "cache/cached_portfolio_data.rda"
+if ( file.exists(cached_file) ) {
+  load(cached_file)
+} else {
+  download_tickers <- function(x) {
+    download_ticker_error_handler <- function(e) {
+      warning(paste(x, 'not found'))
+      return(NA)
+    }
+    tryCatch(getSymbols(x, from = Sys.Date() - 180, auto.assign = FALSE),
+             error = download_ticker_error_handler)
+  }
+  Historicals <- lapply(Tickers, download_tickers)
+
+  prices <- do.call("cbind",lapply(Historicals, function(x) x[, 6]))
+
+  djia2018 <- as.data.frame((log(lag(prices)) - log(prices))[-1, ])
+  save(Historicals, prices, djia2018, file = cached_file)
+}
+```
+
+We consider a portfolio of assets with random returns. We denote the portfolio
+choice vector by $x$ and by $r$ the vector random returns. 
+$N$ denotes the number of assets in the portfolio while $S$ is the number of scenarios in the scenarios set.
+
+
+<!-- ############################################# -->
+# Examples 
+
+## Example 1: Maximize expected return subject to budget normalization and group constraints {#rewardex1}
+The following optimization problem:
+$$
+\begin{eqnarray*}
+\max_{x \in \mathbb{r}^N}&& \hat \mu^\top x\\
+\sum_{x=1}^N x_i &=& 1\\
+x_i &\geq& 0\\
+x_3 + x_{17} &\leq& 0.5 
+\end{eqnarray*} 
+$$
+can be set up easily in ROI:
+
+```{r}
+lp  <- OP(objective  =  reward_objective(djia2018)$objective,
+          constraints = rbind(budget_constraint(djia2018),
+                              group_constraint(djia2018, index = c(3, 17), dir = "==", rhs = 0.5)),
+          maximum = T)
+```
+(Note that the bounds can be omitted as this is the default in ROI). 
+To perfom the optimization, the `ROI_solve()` function is called:
+```{r}
+(sol <- ROI_solve(lp, solver = "glpk"))
+```
+
+```{r}
+solution(sol)
+```
+
+## Example 2: Minimum variance portfolio {#markex1}
+
+```{r}
+lp  <- OP(objective  =  markowitz_objective(djia2018)$objective,
+          constraints = rbind(budget_constraint(djia2018)))
+```
+(Note that the bounds can be omitted as this is the default in ROI). 
+To perfom the optimization, the `ROI_solve()` function is called:
+```{r}
+(sol <- ROI_solve(lp, solver = "quadprog"))
+```
+
+```{r}
+round(solution(sol), 3)
+```
+## Example 3: Minimum variance portfolio with budget normalization and target return constraint {#markex2}
+
+```{r}
+lp  <- OP(objective  =  markowitz_objective(djia2018)$objective,
+          constraints = rbind(budget_constraint(djia2018),
+                              reward_constraint(djia2018, rhs = 0.001)))
+```
+To perfom the optimization, the `ROI_solve()` function is called:
+
+```{r}
+(sol <- ROI_solve(lp, solver = "quadprog"))
+```
+
+```{r}
+round(solution(sol), 3)
+```
+## Example 4: Minimize mean absolute deviation portfolio {#madex1}
+The minimum MAD portfolio is given by:
+```{r}
+lp  <- OP(objective  =  mad_objective(djia2018)$objective,
+          constraints = rbind(mad_objective(djia2018)$constraint,
+                              budget_constraint(djia2018),
+                              use.names = TRUE))
+
+```
+(Note that the bounds can be omitted as this is the default in ROI). 
+To perfom the optimization, the `ROI_solve()` function is called:
+
+```{r}
+(sol <- ROI_solve(lp, solver = "glpk"))
+```
+The optimal weights are:
+
+```{r}
+round(solution(sol)[seq_len(NCOL(djia2018))], 3)
+```
+
+## Example 5: The  minimum lower semi-variance portfolio {#downvarex1}
+The  minimum lower semi-variance portfolio is given by:
+
+```{r}
+tmp <- downside_var_objective(djia2018)
+lp  <- OP(objective  = tmp$objective,
+          constraints = rbind(tmp$constraint,
+                              budget_constraint(djia2018), 
+                              use.names = TRUE))
+
+```
+To perfom the optimization, the `ROI_solve()` function is called:
+
+```{r}
+(sol <- ROI_solve(lp, solver = "quadprog"))
+```
+The optimal weights are:
+
+```{r}
+round(solution(sol)[seq_len(NCOL(djia2018))], 3)
+```
+
+## Example 6: Minimum lower semi-absolute deviation portfolio with target return constraint {#downmadex1}
+The portfolio with minimum lower semi-absolute deviation and minimum 0.001 target return is given by:
+
+```{r}
+tmp <- downside_mad_objective(djia2018)
+lp  <- OP(objective  = tmp$objective,
+          constraints = rbind(tmp$constraint,
+                              budget_constraint(djia2018),
+                              reward_constraint(djia2018, rhs = 0.001),
+                              use.names = TRUE))
+
+```
+To perfom the optimization, the `ROI_solve()` function is called:
+
+```{r}
+(sol <- ROI_solve(lp, solver = "glpk"))
+```
+
+```{r}
+round(solution(sol)[seq_len(NCOL(djia2018))], 3)
+```
+
+## Example 7: Minimum 95\% & 99\% conditional value at risk:
+The portfolio with minimum 95\% conditional value at risk can be obtained as follows:
+
+```{r}
+tmp <- cvar_objective(djia2018, alpha = 0.95)
+lp  <- OP(objective  =  tmp$objective,
+          constraints = rbind(tmp$constraint,
+                              budget_constraint(djia2018),
+                              use.names = TRUE),
+          bounds = tmp$bounds)
+```
+To perfom the optimization, the `ROI_solve()` function is called:
+
+```{r}
+(sol <- ROI_solve(lp, solver = "glpk"))
+```
+
+```{r}
+round(solution(sol)[seq_len(NCOL(djia2018))], 3)
+```
+The solution for 99\% CVaR is given by:
+
+```{r}
+tmp99 <- cvar_objective(djia2018, alpha = 0.99)
+lp99  <- OP(objective  =  tmp99$objective,
+          constraints = rbind(tmp99$constraint,
+                              budget_constraint(djia2018),
+                              use.names = TRUE),
+          bounds = tmp$bounds)
+sol99 <- ROI_solve(lp99, solver = "glpk")
+```
+```{r}
+round(solution(sol99)[seq_len(NCOL(djia2018))], 3)
+```
+The 95\% or the 99\% VaR are a by-product of the optimization problem and can be extracted from the solution
+
+```{r}
+VaR <- c("0.95" = sol$solution["gamma"], 
+         "0.99" = sol99$solution["gamma"]) 
+VaR
+```
+
+## Example 8: The minimax portfolio {#minimaxex1}
+
+```{r}
+tmp <- minimax_young_objective(djia2018)
+lp  <- OP(objective  =  tmp$objective,
+          constraints = rbind(tmp$constraint,
+                              budget_constraint(djia2018),
+                              use.names = TRUE),
+          bounds =  tmp$bounds,
+          maximum =  T)
+
+```
+To perfom the optimization, the `ROI_solve()` function is called:
+
+```{r}
+(sol <- ROI_solve(lp, solver = "glpk"))
+```
+```{r}
+round(solution(sol)[seq_len(NCOL(djia2018))], 3)
+```
+## Example 9: Maximize quadratic utility where short selling is allowed but the weights should not be less than -1. {#quaduex1}
+
+```{r}
+tmp <- quadratic_utility_objective(djia2018)
+lp  <- OP(objective  =  tmp$objective,
+          constraints = budget_constraint(djia2018),
+          bounds = V_bound(li = seq_len(NCOL(djia2018)), 
+                           lb = rep(-1, NCOL(djia2018))),
+          maximum = T)
+```
+
+```{r}
+(sol <- ROI_solve(lp, solver = "quadprog"))
+```
+```{r}
+round(solution(sol)[seq_len(NCOL(djia2018))], 3)
+```
+
+## Example 10: Maximize Sharpe ratio with shortselling {#sharpeex1}
+
+```{r}
+N <- NCOL(djia2018)
+tmp <-sharpe_objective(djia2018)
+
+lp <- OP(maximum = T)
+objective(lp) <- tmp$objective
+```
+When imposing constraints on the portfolio choice vector $x$ using the Sharpe objective, one must keep in mind that $x^* = y^* / \kappa^*$, where $y$ and $\kappa$ are the values optimized. 
+Hence, the constraint $x_i \geq -1$ must be transformed to:
+$$ y_i/\kappa \geq -1 \Rightarrow y_i \geq -\kappa \Rightarrow y_i + \kappa \geq 0 $$:
+
+```{r}
+mat <- cbind(diag(N),  1)
+shortsell_constraint <- L_constraint(mat, dir = rep(">=", N),
+                                     rhs = rep(0, N))
+
+constraints(lp) <- rbind(tmp$constraint,
+                         shortsell_constraint)
+```
+Moreover, the lower bounds for the auxiliary variables must be set to `-Inf`.
+
+```{r}
+bounds(lp) <- V_bound(li = seq_len(N +1), 
+                      lb = c(rep(-Inf, N), 0))
+```
+
+```{r}
+(sol <- ROI_solve(lp, solver = "quadprog"))
+```
+The optimal solution is given by $x^* = y^* / \kappa^*$: 
+
+```{r}
+sol_sharpe <- solution(sol)
+x_opt <- round(sol_sharpe[1:30]/sol_sharpe["kappa_sharpe"], 3)
+names(x_opt) <-colnames(djia2018)
+x_opt
+```
+
+## Example 11: Maximize Omega {#omegaex1}
+
+```{r}
+tmp <- omega_objective(djia2018)
+lp  <- OP(objective  =  tmp$objective,
+          constraints = tmp$constraint,
+          maximum = T)
+```
+
+```{r}
+(sol <- ROI_solve(lp, solver = "glpk"))
+```
+The optimal solution is given by $x^* = y^* / z^*$. 
+```{r}
+sol_omega <- solution(sol)
+x_opt <- round(sol_omega[1:30]/sol_omega["z_omega"], 3)
+names(x_opt) <-colnames(djia2018)
+x_opt
+```
+
+## Example 12: Maximize expected returns wrt to cvar, turnover, short selling and group constraints {#rewardex2}
+
+\begin{eqnarray*}
+\max_{x\in\mathbb{R}^N}&  \hat\mu^\top x \\
+s.t.& \mathrm{CVaR}(x, 0.95) \leq 0.02 \\
+             & x_i \geq  -1\\
+             & x_2 + x_{10} + x_{20}\leq 0.5 \\
+             & \sum_{i=1}^N \vert x_i - x_{0i} \vert \leq 0.5
+\end{eqnarray*}
+Given that the constraints have more (auxiliary) variables than the objective, first the constraints are defined:
+
+```{r}
+lp <- OP(maximum = T)
+
+constraints(lp) <- rbind(
+  budget_constraint(djia2018),
+  group_constraint(djia2018, index = c(2, 10, 20), dir = "<=", rhs = 0.5),
+  turnover_constraint(djia2018, dir = "<=", rhs = 0.5),
+  cvar_constraint(djia2018, alpha = 0.95, rhs = 0.02),
+  use.names = TRUE)
+```
+Next, the  vector of the linear objective is filled with zeros to match the dimension of the constraints:
+
+```{r}
+obj <- c(terms(reward_objective(djia2018)$objective)$L)
+objective(lp) <- c(obj, double(ncol(constraints(lp)) - length(obj)))
+(sol <- ROI_solve(lp, solver = "glpk"))
+solution(sol)[1:30]
+```
+## Example 13:  Maximize expected return wrt variance constraint {#rewardex3}
+\begin{eqnarray*}
+\max_{x\in\mathbb{R}^N}&&  \hat\mu^\top x \\
+s.t.&& x^{\top}Qx \leq 0.1 \\
+             &&\sum_{i=1}^N x_i =1\\
+             && x_i \geq 0
+\end{eqnarray*}
+
+```{r}
+p <- OP(maximum = T)
+
+constraints(p) <- rbind(
+  markowitz_constraint(djia2018, dir = "<=", rhs = 0.5^2),
+  budget_constraint(djia2018),
+  use.names = TRUE)
+
+objective(p) <- reward_objective(djia2018)$objective 
+```
+When using the alabama solver starting values need to be chosen. 
+A good strategy is to use several starting values and compare the results.
+
+```{r}
+mstart <- lapply(1:10, function(x) runif(length(objective(p))))
+solus <- lapply(mstart, function(s) ROI_solve(p, solver = "alabama", start = s))
+best_solution <- which.max(sapply(solus, solution, type = "objval"))  
+round(solution(solus[[best_solution]]), 3)
+```
+
+## Example 14: Minimize 99\% CVaR wrt cardinality constraints {#cvarex2}
+
+\begin{eqnarray*}
+\min_{x\in \mathbb{R}^N, z\in \mathbb{R}^S, \gamma\in \mathbb{R}}& &\gamma + \frac{1}{(1-0.99)} \sum_{s = 1}^S p_s z_s\\
+s.t.&&z_s \geq - r_s^\top x - \gamma,\\
+&&z_s \geq 0,\\
+&& \sum_{i=1}^N u_i\leq 6,\\ 
+&& x_i - u_i \leq 0.
+\end{eqnarray*}
+where $u\in \mathbb{R}^N$are  binary auxiliary variables.
+
+```{r}
+tmp <- cvar_objective(djia2018, 0.99)
+lp <- OP()
+
+constraints(lp) <- rbind(
+  tmp$constraint,
+  budget_constraint(djia2018),
+  cardinality_constraint(djia2018, dir = "<=", rhs = 6),
+  use.names = TRUE)
+
+obj <-c((tmp$objective)$L)
+objective(lp) <- c(obj, double(NCOL(constraints(lp)) - length(obj)))
+
+types(lp) <- rep("C",  NCOL(constraints(lp) ))
+types(lp)[grep("z_card_aux", constraints(lp)$names)] <- "B"
+
+(sol <- ROI_solve(lp, solver = "glpk"))
+
+round(solution(sol)[1:30], 3)
+```

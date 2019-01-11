@@ -8,6 +8,8 @@ navbar:
       href: installation.html
     - text: "Introduction"
       href: introduction.html
+##    - text: "Conic Optimization"
+##      href: introduction_conic_optimization.html
     - text: "Use Cases"
       href: use_cases.html
     - text: "Mixed topics"
