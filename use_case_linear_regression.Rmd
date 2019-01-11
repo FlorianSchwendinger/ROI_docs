@@ -1,0 +1,53 @@
+---
+title: "Linear regression"
+---
+
+# Ordinary least squares (OLS)
+
+The recommended way to do OLS in `R` is to use the `lm` function.
+The following example can be found in [Dobson](#Dobson1990) (1990) dand the 
+[manual-page of lm](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/lm.html).
+
+```{r use_case_linear_regression_lm}
+ctl <- c(4.17,5.58,5.18,6.11,4.50,4.61,5.17,4.53,5.33,5.14)
+trt <- c(4.81,4.17,4.41,3.59,5.87,3.83,6.03,4.89,4.32,4.69)
+group <- gl(2, 10, 20, labels = c("Ctl","Trt"))
+weight <- c(ctl, trt)
+lm.D9 <- lm(weight ~ group)
+lm.D9
+```
+
+
+This shows how **ROI** could be used to solve the ordinary least squares problem.
+It is well know that OLS solves the following optimization problem.
+$$\underset{\beta}{\text{minimize}} ~ || y - X \beta ||_2^2$$
+Therefore we can easily solve this quadratic optimization problem by
+making use of **ROI**.
+
+```{r use_case_linear_regression_ROI}
+Sys.setenv(ROI_LOAD_PLUGINS = FALSE)
+suppressMessages(library(ROI))
+library(ROI.plugin.qpoases)
+
+X <- model.matrix(lm.D9)
+y <- weight
+
+Q <-  2 * t(X) %*% X
+L <- -2 * t(y) %*% X
+op <- OP(objective = Q_objective(Q = Q, L = L),
+         bounds = V_bound(ld = -Inf, nobj = ncol(X)))
+(sol <- ROI_solve(op))
+(beta <- solution(sol))
+```
+
+<!--
+# Least absolute deviations (LAD)
+TODO
+
+# Best subset selection
+
+# Ridge regression
+-->
+
+# References
+* Annette Dobson (1990). An Introduction to Generalized Linear Models. <a name = "Dobson1990"></a>
