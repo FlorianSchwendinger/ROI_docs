@@ -1,0 +1,100 @@
+---
+title: "Logistic regression"
+---
+
+The [logistic model](https://en.wikipedia.org/wiki/Logistic_regression) 
+(or logit model) belongs to the [generalized linear models](https://en.wikipedia.org/wiki/Generalized_linear_model) family (GLM). It is widely used in regression 
+analysis to model a binary dependent variable. 
+
+Since GLMs are commonly used **R** has already built-in functionality to
+estimate GLMs. Specifically the `glm` function from the **stats** package,
+with a binomial family and logit link can be used to estimate a logistic model.
+
+The following logistic regression example is from 
+[Brian S. Everitt and Torsten Hothorn (2017)](#HSAUR).
+
+```{r, use_case_logistic_regression_glm}
+library(HSAUR)
+m <- glm(ESR ~ fibrinogen, data = plasma, family = binomial(link = "logit"))
+coef(m)
+```
+
+Making use of maximum likelihood estimation the logistic regression model can also
+be estimated in **ROI**. Here either a conic solver or a general purpose solver
+can be used. The conic solvers have the advantages that they are designed to 
+find the global optimum and are (typically) faster.
+
+# Log-likelihood
+The log-likelihood
+$$
+\underset{\beta}{\text{maximize}} 
+      \sum_{i = 1}^n ~ y_i ~ \log \left(\frac{\exp(X_{i*} \beta)}{1 + \exp(X_{i*} \beta)} \right) 
+    + \sum_{i = 1}^n ~ (1 - y_i) ~ \log \left(1 - \frac{\exp(X_{i*} \beta)}{1 + \exp(X_{i*} \beta)} \right)
+$$
+can be simplified to
+$$
+    \underset{\beta}{\text{maximize}} ~
+      \sum_{i = 1}^n y_i ~ X_{i*} \beta - \sum_{i = 1}^n \log(1 + \exp(X_{i*} \beta)).
+$$ 
+
+# Estimation
+
+```{r, use_case_logistic_regression_data}
+Sys.setenv(ROI_LOAD_PLUGINS = FALSE)
+library(ROI)
+library(ROI.plugin.optimx)
+library(ROI.plugin.ecos)
+X <- cbind(Intercept = 1, fibrinogen = plasma$fibrinogen)
+y <- as.integer(plasma$ESR) - 1L
+```
+
+# General purpose solver
+
+```{r, use_case_logistic_regression_GPS}
+mle <- function(beta) {
+    drop(y %*% X %*% beta - sum(log(1 + exp(X %*% beta))))
+}
+
+op_gps <- OP(F_objective(mle, n =  ncol(X)), maximum = TRUE,
+	bounds = V_bound(ld = -Inf, nobj = ncol(X)))
+s1 <- ROI_solve(op_gps, "optimx", start = double(ncol(X)))
+solution(s1)
+```
+
+# Conic solver
+
+For conic optimization we he to build the matrices necessary
+to express the objective function.
+
+```{r, use_case_logistic_regression_conic}
+library(slam)
+logistic_regression <- function(y, X, solver = "auto", ...) {
+  stm <- simple_triplet_matrix
+  stzm <- simple_triplet_zero_matrix
+  stopifnot(is.vector(y), length(y) == nrow(X))
+  m <- nrow(X); n <- ncol(X)
+  i <- 3 * seq_len(m) - 2
+  op <- OP(c(-(y %*% X), rep.int(1, m), double(m)), maximum = FALSE)
+  C11 <- stm(rep(i, n), rep(seq_len(n), each = m), -drop(X), 3 * m, n)
+  C12 <- stm(i, seq_len(m), rep.int(1, m), 3 * m, m)
+  C13 <- stm(i + 2, seq_len(m), rep.int(-1, m), 3 * m, m)
+  C1 <- cbind(C11, C12, C13)
+  C2 <- cbind(stzm(3 * m, n), C12, -C13)
+  C <- rbind(C1, C2)
+  cones <- K_expp(2 * m)
+  rhs <- c(rep(c(0, 1, 1), m), rep(c(0, 1, 0), m))
+  constraints(op) <- C_constraint(C, cones, rhs)
+  bounds(op) <- V_bound(ld = -Inf, nobj = ncol(C))
+  ROI_solve(op, solver = solver, ...)
+}
+
+s2 <- logistic_regression(y, X)
+head(solution(s2), ncol(X))
+```
+
+
+# References
+* Brian S. Everitt and Torsten Hothorn (2017). HSAUR: A Handbook of Statistical Analyses Using R (1st Edition). R package version 1.3-9. URL: [`https://CRAN.R-project.org/package=HSAUR`](https://CRAN.R-project.org/package=HSAUR) <a name = "HSAUR"></a>
+
+
+

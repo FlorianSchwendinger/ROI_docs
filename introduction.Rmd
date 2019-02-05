@@ -632,7 +632,7 @@ tmpfile <- tempfile()
 con <- gzcon(url("http://www.zib.de/koch/perplex/data/netlib/mps/capri.mps.gz"))
 writeLines(readLines(con), tmpfile)
 close(con)
-(capri <- read.op(tmpfile, type="mps_fixed", "lpsolve"))
+(capri <- ROI_read(tmpfile, type="mps_fixed", "lpsolve"))
 (sol <- ROI_solve(capri))
 ```
 
@@ -643,7 +643,7 @@ ROI_registered_writer()
 
 ```{r}
 tmpfile <- tempfile()
-write.op(milp, tmpfile, type = "lp_lpsolve")
+ROI_write(milp, tmpfile, type = "lp_lpsolve")
 cat(readLines(tmpfile), sep="\n")
 ```
 

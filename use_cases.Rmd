@@ -13,7 +13,7 @@ The following contains some use cases.
 
 
 # Generalized linear models
-* Logistic regression (TODO) <!-- [Logistic regression](use_case_logistic_regression.html) -->
+* [Logistic regression](use_case_logistic_regression.html)
 * Poisson regression (TODO) <!-- [Poisson regression](use_case_poisson_regression.html) -->
 
 
