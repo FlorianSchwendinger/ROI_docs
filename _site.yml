@@ -21,8 +21,9 @@ navbar:
 output:
   html_document:
     theme: paper
-    highlight: textmate ## default, tango, pygments, kate, monochrome, espresso, zenburn, haddock, textmate
+    highlight: pygments ## textmate ## default, tango, pygments, kate, monochrome, espresso, zenburn, haddock, textmate
     css: styles.css
     toc: true
     toc_depth: 2
     toc_float: true
+

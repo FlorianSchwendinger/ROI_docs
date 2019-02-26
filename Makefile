@@ -44,6 +44,18 @@ render_use_case_ols:
 render_use_case_logreg:
 	R -e "rmarkdown::render_site('use_case_logistic_regression.Rmd')"
 
+render_use_case_poisson:
+	R -e "rmarkdown::render_site('use_case_poisson_regression.Rmd')"
+
+render_use_case_lasso:
+	R -e "rmarkdown::render_site('use_case_lasso.Rmd')"
+
+render_use_case_ridge:
+	R -e "rmarkdown::render_site('use_case_ridge_regression.Rmd')"
+
+render_use_case_sudoku:
+	R -e "rmarkdown::render_site('use_case_sudoku.Rmd')"
+
 render_use_case_portfolio_optimization:
 	R -e "rmarkdown::render_site('use_case_portfolio_optimization.Rmd')"
 
@@ -58,13 +70,16 @@ clean:
 	rm -rf _site/precompiled
 	rm -rf _site/devel
 	rm -rf _site/cache
+	rm -rf _site/archive
+	rm -rf _site/papers
 
 clean_all: clean
 	rm -rf _site
 
-sync_www:
+sync_www: clean
 	rsync --progress -avuz _site/* /home/florian/work/Optimization/ROI/ROI_R-Forge/www/
 
 sync_git:
-	rsync --progress -avuz --exclude '_site' * /home/florian/work/Optimization/ROI/ROI_docs/
+	rsync --progress -avuz --exclude '_site' --exclude 'archive' --exclude 'cache' --exclude 'devel' --exclude 'papers' * /home/florian/work/Optimization/ROI/ROI_docs/
+
 

@@ -4,23 +4,23 @@ title: "Use Cases"
 
 The following contains some use cases.
 
+
 # Combinatorial Problems
-* Sudoku (TODO)
+* [Sudoku](use_case_sudoku.html)
+
 
 # Linear regression
-* LAD (TODO)
 * [Ordinary least squares](use_case_linear_regression.html)
 
 
 # Generalized linear models
 * [Logistic regression](use_case_logistic_regression.html)
-* Poisson regression (TODO) <!-- [Poisson regression](use_case_poisson_regression.html) -->
+* [Poisson regression](use_case_poisson_regression.html)
 
 
 # Model selection (regularization)
-* Best subset selection (TODO)
-* Ridge regression (TODO)
-* Lasso (TODO)
+* [Ridge regression](use_case_ridge_regression.html)
+* [Lasso](use_case_lasso.html)
 
 
 # Portfolio Optimization

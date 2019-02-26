@@ -1,8 +1,6 @@
 ---
-title: "Linear regression"
+title: "Ordinary least squares (OLS)"
 ---
-
-# Ordinary least squares (OLS)
 
 The recommended way to do OLS in `R` is to use the `lm` function.
 The following example can be found in [Dobson](#Dobson1990) (1990) dand the 

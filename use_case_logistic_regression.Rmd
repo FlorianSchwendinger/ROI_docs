@@ -14,6 +14,7 @@ The following logistic regression example is from
 [Brian S. Everitt and Torsten Hothorn (2017)](#HSAUR).
 
 ```{r, use_case_logistic_regression_glm}
+options(width = 10000)
 library(HSAUR)
 m <- glm(ESR ~ fibrinogen, data = plasma, family = binomial(link = "logit"))
 coef(m)
@@ -63,12 +64,12 @@ solution(s1)
 
 # Conic solver
 
-For conic optimization we he to build the matrices necessary
+For conic optimization we need to build the matrices necessary
 to express the objective function.
 
 ```{r, use_case_logistic_regression_conic}
 library(slam)
-logistic_regression <- function(y, X, solver = "auto", ...) {
+logistic_regression <- function(y, X, solver = "ecos", ...) {
   stm <- simple_triplet_matrix
   stzm <- simple_triplet_zero_matrix
   stopifnot(is.vector(y), length(y) == nrow(X))

@@ -1,0 +1,80 @@
+---
+title: "Ridge regression"
+---
+
+[Ridge regression (also known as Tikhonov regularization)](https://en.wikipedia.org/wiki/Tikhonov_regularization) 
+shrinks the regression coefficients by adding a quadratic penalty term to the optimization problem.
+$$
+\underset{\beta}{\text{minimize}} ~~ \frac{1}{2} || y - X \beta ||_2^2 +  \lambda ||\beta||_2^2
+$$
+with $X \in \mathbb{R}^{m \times n}$, $y \in \mathbb{R}^{m}$, $\beta \in \mathbb{R}^n$
+and $0 < \lambda \in \mathbb{R}$.
+
+It is well known that $\beta$ can be estimated by the following formula.
+$$
+\hat{\beta} = (X^\top X + \lambda I)^{-1} X^\top y
+$$
+here $I \in R^{n, n}$ refers to the identity matrix.
+
+The optimization problem can be rewritten into a quadratic optimization problem
+$$
+\begin{array}{rl}
+\underset{(\beta, \gamma)}{\text{minimize}} &
+    \frac{1}{2} \gamma^\top \gamma + \lambda \beta^\top \beta \\
+\text{subject to} & 
+    y - X \beta = \gamma
+\end{array}
+$$
+with $\gamma \in \mathbb{R}^n$.
+
+
+</br>
+In **R** the packages [**glmnet**](https://cran.r-project.org/package=glmnet)
+and [**MASS**](https://cran.r-project.org/package=MASS) provide functionality 
+for ridge regression.
+
+
+```{r}
+y <- longley[,1]
+x <- as.matrix(longley[,-1])
+```
+
+## Estimation
+```{r, message = FALSE}
+library(slam)
+Sys.setenv(ROI_LOAD_PLUGINS = FALSE)
+library(ROI)
+library(ROI.plugin.qpoases)
+
+dbind <- function(...) {
+    .dbind <- function(x, y) {
+        A <- simple_triplet_zero_matrix(NROW(x), NCOL(y))
+        B <- simple_triplet_zero_matrix(NROW(y), NCOL(x))
+        rbind(cbind(x, A), cbind(B, y))
+    }
+    Reduce(.dbind, list(...))
+}
+```
+
+```{r}
+qp_ridge <- function(x, y, lambda) {
+    stdm <- simple_triplet_diag_matrix
+    m <- NROW(x); n <- NCOL(x)
+    Q0 <- dbind(stdm(2 * lambda, n), stdm(1, m))
+    a0 <- c(b = double(n), g = double(m))
+    op <- OP(objective = Q_objective(Q = Q0, L = a0))
+    A1 <- cbind(x, stdm(1, m))
+    constraints(op) <- L_constraint(A1, eq(m), y)
+    bounds(op) <- V_bound(ld = -Inf, nobj = ncol(Q0))
+    op
+}
+
+op <- qp_ridge(x, y, 0)
+(qp0 <- ROI_solve(op, "qpoases"))
+cbind(round(coef(lm.fit(x, y)), 3), round(head(solution(qp0), ncol(x)), 3))
+
+op <- qp_ridge(x, y, 10)
+(qp1 <- ROI_solve(op, "qpoases"))
+head(solution(qp1), NCOL(x))
+```
+
