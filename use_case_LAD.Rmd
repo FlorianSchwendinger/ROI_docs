@@ -96,5 +96,4 @@ cbind(ROI = head(solution(L1_res), n),
 
 # References
 
-* Brooks JP, Dula JH (2013). The L1-norm best-fit hyperplane
-  problem. Applied Mathematics Letters, 26(1), 51–55. URL [`doi:10.1016/j.aml.2012.03.031`](https://doi.org/10.1016/j.aml.2012.03.031) <a name = "BD2013"></a>
+* Brooks JP, Dula JH (2013). The L1-norm best-fit hyperplane problem. Applied Mathematics Letters, 26(1), 51–55. URL [`doi:10.1016/j.aml.2012.03.031`](https://doi.org/10.1016/j.aml.2012.03.031) <a name = "BD2013"></a>
