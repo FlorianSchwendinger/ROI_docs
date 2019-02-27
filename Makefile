@@ -41,6 +41,9 @@ render_use_cases:
 render_use_case_ols:
 	R -e "rmarkdown::render_site('use_case_linear_regression.Rmd')"
 
+render_use_case_lad:
+	R -e "rmarkdown::render_site('use_case_LAD.Rmd')"
+
 render_use_case_logreg:
 	R -e "rmarkdown::render_site('use_case_logistic_regression.Rmd')"
 

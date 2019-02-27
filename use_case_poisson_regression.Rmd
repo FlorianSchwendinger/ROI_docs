@@ -1,0 +1,98 @@
+---
+title: "Poisson regression"
+---
+
+To model count data and contingency tables often 
+[Poisson regression](https://en.wikipedia.org/wiki/Poisson_regression) is used.
+Poisson regression models belong to the 
+[generalized linear models](https://en.wikipedia.org/wiki/Generalized_linear_model) 
+family (GLM).
+
+Since GLMs are commonly used **R** has already built-in functionality to
+estimate GLMs. Specifically the `glm` function from the **stats** package,
+withpoisson family and log link can be used to estimate a Poisson model.
+
+The following poisson regression example is from the 
+[`glm` manual page](https://stat.ethz.ch/R-manual/R-devel/library/stats/html/glm.html)
+and based on [Dobson (1990)](#DOBSON).
+
+```{r, use_case_poisson_regression_glm}
+options(width = 10000)
+counts <- c(18, 17, 15, 20, 10, 20, 25, 13, 12)
+outcome <- gl(3, 1, 9)
+treatment <- gl(3, 3)
+glm.D93 <- glm(counts ~ outcome + treatment, family = poisson(link = "log"))
+round(coef(glm.D93), 4)
+```
+
+Making use of maximum likelihood estimation the logistic regression model can also
+be estimated in **ROI**. Here either a conic solver or a general purpose solver
+can be used. The conic solvers have the advantages that they are specifically 
+designed to find the global optimum and are (often) faster.
+
+# Log-likelihood
+The maximum likelihood estiamte can be obtained be solving the following
+optimzation problem.
+$$
+\begin{equation}
+    \underset{\beta}{\text{maximize}} ~~
+      \sum_{i = 1}^n y_i ~ log(\lambda_i) - \lambda_i
+      ~~ \text{where} ~~ \lambda_i = exp(X_{i*} \beta)
+\end{equation}
+$$
+
+# Estimation
+
+
+```{r, use_case_poisson_regression_data, message = FALSE}
+Sys.setenv(ROI_LOAD_PLUGINS = FALSE)
+library(ROI)
+library(ROI.plugin.nloptr)
+library(ROI.plugin.ecos)
+X <- model.matrix(glm.D93)
+y <- counts
+```
+
+# General purpose solver
+
+```{r, use_case_poisson_regression_GPS}
+log_likelihood <- function(beta) {
+    xb <- drop(X %*% beta)
+    sum(y * xb - exp(xb))
+}
+
+op_gps <- OP(F_objective(log_likelihood, n =  ncol(X)), maximum = TRUE,
+    bounds = V_bound(ld = -Inf, nobj = ncol(X)))
+s1 <- ROI_solve(op_gps, "nloptr.lbfgs", start = rnorm(ncol(X)))
+round(solution(s1), 4)
+```
+
+
+# Conic solver
+
+This problem can also be estimated by making use of conic optimization.
+
+
+```{r, use_case_poisson_regression_conic}
+library(slam)
+poisson_regression <- function(y, X) {
+    m <- nrow(X); n <- ncol(X)
+    i <- 3 * seq_len(m) - 2
+    op <- OP(c(-(y %*% X), rep.int(1, m)))
+    stm <- simple_triplet_matrix
+    A <- cbind(stm(rep(i, n), rep(seq_len(n), each = m), -drop(X), 3 * m, n),
+               stm(i + 2, seq_len(m), rep.int(-1, m), 3 * m, m))
+    rhs <- rep(c(0, 1, 0), m)
+    cones <- K_expp(m)
+    constraints(op) <- C_constraint(A, cones, rhs)  
+    bounds(op) <- V_bound(ld = -Inf, nobj = ncol(A))
+    op
+}
+
+op <- poisson_regression(y, X)
+s <- ROI_solve(op, solver = "ecos")
+round(head(solution(s), n = NCOL(X)), 4)
+```
+
+# References
+* Dobson, A. J. (1990) An Introduction to Generalized Linear Models. London: Chapman and Hall. <a name = "DOBSON"></a>

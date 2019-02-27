@@ -1,0 +1,100 @@
+---
+title: "Least absolute deviation (LAD) problem"
+---
+
+The [least absolute deviation (LAD)](https://en.wikipedia.org/wiki/Least_absolute_deviations) ---
+also known as $L_1$ regression --- is a statistical optimization technique
+attempting to find a function $f(x_i)$ which closely approximates a data
+set of the points ($x_i$, $y_i$) with $i = 1, \ldots{}, n$. It minimizes the sum of absolute errors between points generated
+by the function ($\hat{y}_i$) and the corresponding data points. 
+\begin{eqnarray*}
+  \text{minimize} ~~ \sum_i^n | y_i - \hat{y}_i |
+\end{eqnarray*}
+As such can be classified as a non-linear optimization problem. 
+
+However, following, e.g., [Brooks and Dula (2013)](#BD2013) the
+objective function can be expressed as
+
+$$
+\begin{eqnarray*}
+  \underset{{\beta_0,\mathbf{\beta},\mathbf{e}^+,\mathbf{e}^-}}{\text{minimize}}
+  ~~ \sum_{i=1}^n e_i^+ + e_i^- ~~~~~~~~~~~~~~~~~
+  \nonumber
+  \\
+  \text{subject to} ~~~~~~~~~~ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ ~~~~~~~~~
+  \nonumber
+  \\
+  \beta_0 + \mathbf{\beta}^\top \mathbf{x}_i + e_i^+ - e_i^- = 0 ~~~~~~ i = 1,\ldots{},n
+  \nonumber
+  \\
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ \beta_j = -1 ~~~~~~~~~~~~~~~~~~~~~
+  \nonumber
+  \\
+  ~~~~~~~~~~~~~~~~~~~~~~~ e_i^+, e_i^- \geq 0 ~~~~~ i = 1,\ldots{},n
+\end{eqnarray*}
+$$
+given a set of points $\mathbf{x}_i \in \mathbb{R}^m$, $i = 1,\ldots{},n$
+and the $j^{th}$ column representing the dependent variable $y$. In
+comparison to the original formulation we differentiate between positive
+and negative deviations/errors ($e_i^+$ and $e_i^-$, respectively) to
+get to the linear programming problem shown above.
+
+</br>
+
+## LP Implementation
+
+The linear programming formulation of the $L_1$ regression problem as shown above
+can be constructed using **ROI** methods via the following R function.
+
+```{r, message = FALSE}
+create_L1_problem <- function(x, j) {
+  m <- ncol(x) + 1L
+  n <- 2 * nrow(x)
+  beta <- double(m + n)
+  beta[j + 1] <- 1
+  OP(objective = L_objective(c(rep(0, m), rep(1, n))),
+    constraints = rbind(
+      L_constraint(L = cbind(1, x, diag(nrow(x)), -diag(nrow(x))),
+        dir = eq(nrow(x)), rhs = rep(0, nrow(x))),
+      L_constraint(L = beta, dir = "==", rhs = -1)),
+    bounds = V_bound(li = seq_len(m), lb = rep(-Inf, m),
+      nobj = length(beta)))
+}
+```
+
+With **ROI** one can solve e.g., Brownlee's stack loss plant data example from the **stats**
+package using the above OP and the solver GLPK as follows.
+
+```{r use_case_LAD_glpk, message = FALSE}
+Sys.setenv(ROI_LOAD_PLUGINS = FALSE)
+library(ROI)
+library(ROI.plugin.glpk)
+
+data(stackloss)
+l1p <- create_L1_problem(as.matrix(stackloss), 4)
+L1_res <- ROI_solve(l1p, solver = "glpk")
+```
+
+The first value corresponds to the intercept and the others to the
+model coefficients.
+
+## Comparison
+
+For comparison purposes we solve the same problem with **R**
+package [**quantreg**](https://cran.r-project.org/package=quantreg).
+
+```{r use_case_LAD_quantreg, message = FALSE}
+library("quantreg")
+fm <- rq(stack.loss ~ stack.x, 0.5)
+```
+
+```{r}
+n <- ncol(stackloss)
+cbind(ROI = head(solution(L1_res), n),
+      quantreg = coef(fm))
+```
+
+# References
+
+* Brooks JP, Dula JH (2013). The L1-norm best-fit hyperplane
+  problem. Applied Mathematics Letters, 26(1), 51–55. URL [`doi:10.1016/j.aml.2012.03.031`](https://doi.org/10.1016/j.aml.2012.03.031) <a name = "BD2013"></a>

@@ -11,7 +11,7 @@ The following contains some use cases.
 
 # Linear regression
 * [Ordinary least squares](use_case_linear_regression.html)
-
+* [Least absolute deviation problem](use_case_LAD.html)
 
 # Generalized linear models
 * [Logistic regression](use_case_logistic_regression.html)
