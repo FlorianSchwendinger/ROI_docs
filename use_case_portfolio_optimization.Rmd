@@ -519,10 +519,10 @@ For illustration purposes daily log returns for the past 180 days of the 30 comp
 
 ```{r, results = 'hide', message=FALSE}
 if (!require("quantmod")) install.packages("quantmod"); library("quantmod")
-Tickers     <- c("MMM", "AXP","AAPL", "BA","CAT","CVX","CSCO", "KO", "DWDP", "XOM",
-                 "GS","HD", "IBM", "INTC", "JNJ", "JPM","MCD","MRK","MSFT",
-                 "NKE", "PFE","PG",
-                 "TRV", "UNH","UTX", "VZ", "V", "WMT", "WBA", "DIS")
+Tickers     <- c("MMM", "AXP", "AAPL", "BA", "CAT", "CVX", "CSCO", "KO", "DIS", "DOW",
+                 "XOM", "GS", "HD", "IBM", "INTC", "JNJ", "JPM",
+                 "MCD", "MRK", "MSFT", "NKE", "PFE", "PG",
+                 "TRV", "UNH", "UTX", "VZ", "V", "WMT", "WBA", )
 
 cached_file <- "cache/cached_portfolio_data.rda"
 if ( file.exists(cached_file) ) {
@@ -543,6 +543,27 @@ if ( file.exists(cached_file) ) {
   djia2018 <- as.data.frame((log(lag(prices)) - log(prices))[-1, ])
   save(Historicals, prices, djia2018, file = cached_file)
 }
+```
+
+```{r, eval=FALSE, results = 'hide', message=FALSE}
+if (!require("quantmod")) install.packages("quantmod"); library("quantmod")
+Tickers     <- c("MMM", "AXP", "AAPL", "BA", "CAT", "CVX", "CSCO", "KO", "DIS", "DOW",
+                 "XOM", "GS", "HD", "IBM", "INTC", "JNJ", "JPM",
+                 "MCD", "MRK", "MSFT", "NKE", "PFE", "PG",
+                 "TRV", "UNH", "UTX", "VZ", "V", "WMT", "WBA", )
+download_tickers <- function(x) {
+  download_ticker_error_handler <- function(e) {
+      warning(paste(x, 'not found'))
+      return(NA)
+    }
+  tryCatch(getSymbols(x, from = Sys.Date() - 180, auto.assign = FALSE),
+           error = download_ticker_error_handler)
+}
+Historicals <- lapply(Tickers, download_tickers)
+
+prices <- do.call("cbind",lapply(Historicals, function(x) x[, 6]))
+
+djia2018 <- as.data.frame((log(lag(prices)) - log(prices))[-1, ])
 ```
 
 We consider a portfolio of assets with random returns. We denote the portfolio
