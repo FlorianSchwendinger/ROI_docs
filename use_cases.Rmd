@@ -26,3 +26,6 @@ The following contains some use cases.
 # Portfolio Optimization
 * [Portfolio Optimization](use_case_portfolio_optimization.html)
 
+
+# Network models
+* <a href="use_case_NW_optim_web_docu.html" target="_blank">Financial Exposure Network Optimization via Mixed Integer Linear Programming</a>

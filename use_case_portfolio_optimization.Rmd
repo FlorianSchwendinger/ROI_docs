@@ -522,7 +522,7 @@ if (!require("quantmod")) install.packages("quantmod"); library("quantmod")
 Tickers     <- c("MMM", "AXP", "AAPL", "BA", "CAT", "CVX", "CSCO", "KO", "DIS", "DOW",
                  "XOM", "GS", "HD", "IBM", "INTC", "JNJ", "JPM",
                  "MCD", "MRK", "MSFT", "NKE", "PFE", "PG",
-                 "TRV", "UNH", "UTX", "VZ", "V", "WMT", "WBA", )
+                 "TRV", "UNH", "UTX", "VZ", "V", "WMT", "WBA")
 
 cached_file <- "cache/cached_portfolio_data.rda"
 if ( file.exists(cached_file) ) {
@@ -550,7 +550,7 @@ if (!require("quantmod")) install.packages("quantmod"); library("quantmod")
 Tickers     <- c("MMM", "AXP", "AAPL", "BA", "CAT", "CVX", "CSCO", "KO", "DIS", "DOW",
                  "XOM", "GS", "HD", "IBM", "INTC", "JNJ", "JPM",
                  "MCD", "MRK", "MSFT", "NKE", "PFE", "PG",
-                 "TRV", "UNH", "UTX", "VZ", "V", "WMT", "WBA", )
+                 "TRV", "UNH", "UTX", "VZ", "V", "WMT", "WBA")
 download_tickers <- function(x) {
   download_ticker_error_handler <- function(e) {
       warning(paste(x, 'not found'))

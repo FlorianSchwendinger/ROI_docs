@@ -305,7 +305,7 @@ install.packages("ROI.models.netlib")
 install.packages("ROI.models.miplib")
 library(ROI.models.miplib)
 miplib_download_metainfo("http://miplib2010.zib.de/download/miplib2010_all.solu")
-miplib_download_benchmark("http://miplib2010.zib.de/download/miplib2010-benchmark.tgz",
+miplib_download_benchmark("http://miplib2010.zib.de/download/miplib2010-1.1.3-benchmark.tgz",
     quiet = FALSE)
 ```
 
