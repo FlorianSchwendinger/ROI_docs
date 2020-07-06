@@ -15,6 +15,7 @@ The following contains some use cases.
 
 # Generalized linear models
 * [Logistic regression](use_case_logistic_regression.html)
+* [Multinomial logistic regression](use_case_multinomial_regression.html)
 * [Poisson regression](use_case_poisson_regression.html)
 
 

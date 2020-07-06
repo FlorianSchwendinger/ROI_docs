@@ -8,7 +8,7 @@ date: "July 6, 2020"
 
 # Model
 The [multinomial logistic model](https://en.wikipedia.org/wiki/Multinomial_logistic_regression) 
-(or logit model) is widely used in regression analysis to model unordered categorical variables. 
+(or multinomial logit model) is widely used in regression analysis to model unordered categorical variables. 
 
 ## Likelihood
 Assume we have a categorical dependent variable $y_{i} \in {1, \ldots, J}$ which can take a value out of $J$ unordered categories for each observation $i = 1,\ldots, n$. Moreover, for each observation we observe a vector of $p$ covariates $\boldsymbol x_i$ which do not depend on the category (this assumption can easily be relaxed). Let us create a binary vector $\boldsymbol {\tilde y}_i$ where $\tilde y_{ij}=1$ if $y_i=j$. The likelihood is given by: 
@@ -29,8 +29,8 @@ the problem of maximizing the log-likelihood can be written as:
 \begin{align}
 \min_{\substack{\boldsymbol\beta_l,\\ l=1,\ldots,J}}\quad &- \sum_{i=1}^n \left(\sum_{j=1}^J \tilde y_{ij}\boldsymbol x^\top_i  \boldsymbol\beta_j\right) + \sum_{i=1}^n t_i\\
 \text{s.t.}\quad  & u^{1}_i + \ldots + u^{J}_i  \leq 1, \quad \forall i=1,\ldots, n\\
-& (-t_{i}, 1, u^J_{i})^\top\in\mathcal{K}_\text{expp}\\
- &(x_i^\top\boldsymbol \beta_j - t_i, 1, u^j_i)^\top\in\mathcal{K}_\text{expp}, \quad \forall j = 1,\ldots,J-1.
+& (-t_{i}, 1, u^1_{i})^\top\in\mathcal{K}_\text{expp}\\
+ &(x_i^\top\boldsymbol \beta_j - t_i, 1, u^j_i)^\top\in\mathcal{K}_\text{expp}, \quad \forall j = 2,\ldots,J.
 \end{align}
 
 # Estimation
@@ -52,7 +52,7 @@ mlogit_roi <- function(X, y, solver = "auto", ...) {
   ytilde <- (y != min(y)) + 0 # indicator taking zero for category to be excluded
   n <- nrow(X); p <- ncol(X); J <- max(y); ptilde <- ncol(xtilde)
   
-  i <- 3 * seq_len(n) - 2 ## triplets for for cones
+  i <- 3 * seq_len(n) - 2 ## triplets for cones
   ## Variables: beta_2, .., beta_J, t_i, u^1,..., u^J
   op <- OP(c(- (ytilde %*% xtilde), rep.int(1, n), double(n * J)), maximum = FALSE)
   Ct <- stm(i, seq_len(n), rep.int(1, n), 3 * n, n)  
@@ -82,17 +82,23 @@ mlogit_roi <- function(X, y, solver = "auto", ...) {
 }
 ```
 
-# Heating example
+# Examples
+## Heating data
 We using the `Heating` data set from the `mlogit` package as an illustration:s
-```{r  use_case_multinomial_regression_data1}
-if(!require("mlogit")) install.packages("mlogit"); library("mlogit")
-if(!require("nnet")) install.packages("nnet"); library("nnet")
+```{r  use_case_multinomial_regression_data1, message=FALSE}
+library("mlogit")
 data("Heating", package = "mlogit")
 ```
 
-We estimate the model using the function `multinom()` for the **nnet** package, which uses a general purpose solver.
+We estimate the model using the function `mlogit()`, which uses the Newton-Raphson algorithm.
 ```{r use_case_multinomial_regression_example1_nnet}
-coef(nnet::multinom(depvar ~ rooms + region, data = Heating))
+data("Heating", package = "mlogit")
+```
+
+```{r use_case_multinomial_regression_example1_mlogit}
+H <- dfidx(Heating, choice = "depvar", varying = c(3:12))
+coef(mlogit(depvar ~ 0 | rooms +  region | 0, data = H, 
+            reflevel = "gc"))
 ```
 
 Now using **ROI**. 
@@ -103,13 +109,13 @@ library(slam)
 y <- Heating$depvar
 X <- model.matrix(~ rooms +  region, data = Heating)
 res <- mlogit_roi(X, y)
-s2 <- solution(res)
-
-matrix(s2[seq_len((max(as.numeric(y)) - 1) * ncol(X))], 
-       ncol = ncol(X))
+s2 <- solution(res)[1:20]
+names(s2) <- apply(expand.grid(levels(y)[-1], colnames(X)), 1,
+                   function(x) paste0(x[2], ":", x[1]))
+s2
 ```
 
-# Fishing example
+## Fishing data
 Using the `Fishing` data set in **mlogit**, we estimate the multinomial model introduced in the first section using the function `mlogit()` from the **mlogit** package
 ```{r use_case_multinomial_regression_example1_mlogit}}
 data("Fishing", package = "mlogit")
@@ -129,6 +135,320 @@ names(s1) <- nam
 s1
 ```
 
+# Extensions
+
+## Constraints on the coefficients
+
+Often more parsimonious models should be employed where constraints on the $\boldsymbol\beta$'s are desired. An example of such a model is:
+\begin{align*}
+\eta_{ij} &= \beta_{0j} + \boldsymbol x_i^\top \boldsymbol\beta\\
+P(y_i = j | \boldsymbol x_i) &= \frac{\exp(\eta_{ij})}{\sum_{l=1}^J\exp(\eta_{il})}
+\end{align*}
+We can introduce the **VGAM** type constraints where for each covariate a full-rank matrix of constraints $H_p$ is specified, 
+which in the most general case are all equal to the identity matrix. The rows of each matrix correspond to the category $j=1\ldots J$
+and each column stands for a parameter to be estimated. Combining these $H_1, \ldots, H_P$ matrices into a block diagonal matrix
+gives rise to the $H_\beta$ matrix of constraints. 
+
+### Estimation
+
+We interact each column of the covariate matrix $X$ with the $n\times J$ design matrix $\tilde Y$ and obtain the model matrix:
+\begin{align*}
+\tilde X&= \left(\mathrm{diag}(X\cdot \boldsymbol e_1){\tilde{Y}}|\ldots|\mathrm{diag}(X\cdot\boldsymbol e_{P}){\tilde{Y}} \right)\\
+\end{align*}
+where $\boldsymbol e_p$ for $p=1,\ldots P$ is the orthonormal basis.
+The total number of coefficients $P^*$ is equal to the number of columns of $H$: $P^*=\mathrm{ncol}(H)$. Let $\tilde H^{(j)}_\beta$ be the $(P \times P^*)$ matrix of constraints corresponding to the $j$-th category. This is obtained by taking the rows in $H_p$ that correspond to the $j$-th category. 
+
+For example, the matrix $H_\text{(Intercept)}$ for the model above is (assuming the first category is the baseline):
+$$
+\begin{pmatrix}
+      & \beta_{02} & \beta_{03}&\ldots & \beta_{0J}\\
+j = 1 & 0   &0    & \ldots&0 \\
+j = 2 &  1 & 0&\ldots& 0\\
+j = 3 &  0 & 1&\ldots& 0\\
+\vdots & \vdots & \ddots &\ldots& \vdots\\
+j = J &  0&0&\ldots& 1\\
+\end{pmatrix}.
+$$
+Note that there is no column corresponding to $\beta_{01}$, as for identifiability one of the $\beta_{0\cdot}$ parameters should be set to zero.
+The matrix $H_\text{(X1)}$ for the first covariate would be:
+$$
+\begin{pmatrix}
+      & \beta_{\text{X1}}\\
+j = 1 & 1  \\
+j = 2 &  1 \\
+j = 3 &  1\\
+\vdots & \vdots\\
+j = J &  1\\
+\end{pmatrix}.
+$$
+Let $\boldsymbol{\tilde \beta}$ be the vector of coefficients to be estimated (in the example above  $\boldsymbol{\tilde \beta}=(\beta_{02}, \beta_{03}, \ldots, \beta_{0J}, \beta_{\text{X1}}, \ldots)^\top$).
+
+The problem including constraints is:
+\begin{align*}
+\min_{\substack{\boldsymbol\beta_l,\\ l=1,\ldots,J}}\quad &\sum_{i=1}^n \left(\sum_{j=1}^J \tilde y_{ij}\boldsymbol {\tilde x}^\top_i H_\beta \boldsymbol{\tilde\beta}\right) + \sum_{i=1}^n t_i\\
+\text{s.t.}\quad  & u^{1}_i + \ldots + u^{J}_i  \leq 1, \quad \forall i=1,\ldots, n\\
+ &(x_i^\top\tilde{H}^{(j)}_\beta\tilde{\boldsymbol\beta}- t_i, 1, u^j_i)^\top\in\mathcal{K}_\text{expp}, \quad \forall j = 1,\ldots,J.
+\end{align*}
+
+
+```{r use_case_multinomial_regression_mlogit_hbeta_function}
+mlogit_hbeta_roi <- function(X, y, Hbeta = NULL, 
+                             solver = "auto", ...) {
+  stm <- simple_triplet_matrix
+  stzm <- simple_triplet_zero_matrix
+  y <- as.numeric(y)
+  stopifnot(is.vector(y), length(y) == nrow(X))
+  n <- nrow(X); p <- ncol(X); J <- max(y); 
+  if (is.null(Hbeta)) Hbeta <- diag(p * J) 
+  if (is.list(Hbeta)) Hbeta <- Matrix::bdiag(Hbeta)
+  if (!is.matrix(Hbeta)) Hbeta <- as.matrix(Hbeta) 
+  ptilde <- ncol(Hbeta)
+
+  ymat <- model.matrix(~ -1 + as.factor(y))
+  xtilde <- model.matrix(~ 0 + ymat : X)    
+
+
+  H <- lapply(seq_len(J), function(j) {
+   Hbeta[c((seq_len(p) - 1) * J + j), ]
+  })
+  i <- 3 * seq_len(n) - 2 ## triplets for cones
+
+  op <- OP(c(- drop(colSums(xtilde %*% Hbeta)), rep.int(1, n),
+             double(n * J)), 
+    maximum = FALSE)
+  Ct <- stm(i, seq_len(n), rep.int(1, n), 3 * n, n)  
+  Cu <- stm(i + 2, seq_len(n), rep.int(-1, n), 3 * n, n)
+  Clist <- lapply(seq_len(J), function(j) {
+    Cx <- stm(rep(i, ptilde), rep(seq_len(ptilde), each = n),
+              -drop(X %*% H[[j]]), 3 * n, ptilde)
+    
+    CC <- cbind(Cx, Ct, stzm(3 * n, n * (j - 1)), Cu, 
+                stzm(3 * n, n * (J - j)))
+  })
+  
+  C <- do.call("rbind", Clist)
+  cones <- K_expp(J * n)
+  rhs <- rep(c(0, 1, 0), n * J)
+
+  CL <- cbind(stzm(n, ptilde + n), 
+              stm(rep(seq_len(n), J), seq_len(n * J),
+                  rep.int(1, n * J), n, n * J))
+
+  constraints(op) <- rbind(C_constraint(C, cones, rhs),
+                           L_constraint(CL, 
+                                        dir = rep("<=", nrow(CL)), 
+                                        rhs =  rep(1, nrow(CL))))
+  
+  bounds(op) <- V_bound(ld = -Inf, nobj = ncol(C))
+  ROI_solve(op, solver = solver, ...)
+}
+```
+
+### Example
+For comparison purposes we use the **VGAM** package to estimate a multinomial logistic  model with constraints. The data set 
+`Fishing` is used for illustration.
+We estimate the model with different intercepts for each category where $\beta_{04}=0$ with one common  $\boldsymbol\beta=\boldsymbol\beta_1=\boldsymbol\beta_2=\boldsymbol\beta_3$ and $\boldsymbol\beta_4=0$.
+
+```{r message=FALSE, use_case_multinomial_regression_example3_vglm}
+library(VGAM)
+pneumo <- transform(pneumo, let = log(exposure.time))
+coef(vglm(mode ~ income, multinomial, 
+          data = Fishing, 
+          constraints = list("(Intercept)" = diag(3),
+                             "income" = cbind(c(1, 1, 1)))))
+```
+
+Now using **ROI**. 
+```{r use_case_multinomial_regression_example3_roi}
+y <- Fishing$mode
+X <- model.matrix(~ income, data = Fishing)
+J <- max(as.numeric(y))
+Hbeta <- list(rbind(diag(J - 1), 0),  
+              c(rep(1L, J - 1), 0))
+Hbeta
+res <- mlogit_hbeta_roi(X, y, Hbeta = Hbeta)
+s1 <- solution(res)[1:4]
+s1
+```
+
+## Individual and alternative specific covariates
+
+We illustrate how a multinomial logistic model with individual and alternative-specific covariates (such as the ones introduced in **mlogit**) can be estimated using **ROI**. Consider the following model $j\in \{1,\ldots,J\}$.
+
+\begin{align*}
+\eta_{ij} &= \beta_{0j} + \boldsymbol x_i^\top \boldsymbol\beta_j + \boldsymbol z_{ij}^\top \boldsymbol\gamma_j\\
+P(y_i = j | \boldsymbol x_i, \boldsymbol z_{ij}) &= \frac{\exp(\eta_{ij})}{\sum_{l=1}^J\exp(\eta_{il})}
+\end{align*}
+
+### Estimation
+
+For identifiability, one of the intercepts and one of the $\beta$'s should be fixed to zero. The parameters of the alternative specific covariates can all be estimated.
+
+The problem is:
+\begin{align*}
+\min_{\substack{\boldsymbol\beta_l,\\ l=1,\ldots,J}}\quad &\sum_{i=1}^n \left(\sum_{j=2}^J \tilde y_{ij}\boldsymbol {x}^\top_i \boldsymbol{\beta}_j + \sum_{j=1}^J \tilde y_{ij} \boldsymbol {z}_{ij}^\top \boldsymbol{\gamma}_j\right) + \sum_{i=1}^n t_i\\
+\text{s.t.}\quad  & u^{1}_i + \ldots + u^{J}_i  \leq 1, \quad \forall i=1,\ldots, n\\
+&(\boldsymbol {z}_{ij}^\top \boldsymbol{\gamma}_j -  t_i, 1, u^1_i)^\top\in\mathcal{K}_\text{expp}, \\
+ &(x_i^\top\boldsymbol \beta_j + \boldsymbol {z}_{ij}^\top \boldsymbol{\gamma}_j - t_i, 1, u^j_i)^\top\in\mathcal{K}_\text{expp}, \quad \forall j = 2,\ldots,J.
+\end{align*}.
+
+
+We also include constraints on both the $\boldsymbol \beta$ and $\boldsymbol \gamma$ coefficients, similar to the setup introduced in the previous section:
+\begin{align*}
+\min_{\substack{\boldsymbol\beta_l,\\ l=1,\ldots,J}}\quad &\sum_{i=1}^n \left(\sum_{j=1}^J \tilde y_{ij}\boldsymbol {\tilde x}^\top_i H_\beta \boldsymbol{\tilde\beta}+ \sum_{j=1}^J \tilde y_{ij}\boldsymbol{z}^\top_{ij} H_\gamma \boldsymbol{\tilde\gamma}\right) + \sum_{i=1}^n t_i\\
+\text{s.t.}\quad  & u^{1}_i + \ldots + u^{J}_i  \leq 1, \quad \forall i=1,\ldots, n\\
+ &(x_i^\top\tilde{H}^{(j)}_\beta\tilde{\boldsymbol\beta} +
+ z_{ij}^\top\tilde{H}^{(j)}_\gamma\tilde{\boldsymbol\gamma} - t_i, 1, u^j_i)^\top\in\mathcal{K}_\text{expp}, \quad \forall j = 1,\ldots,J.
+\end{align*}
+
+```{r}
+mlogit_roi_xz <- function(X, Z, y, Hbeta = NULL, Hgamma = NULL, 
+                          solver = "auto", ...) {
+  stm <- simple_triplet_matrix
+  stzm <- simple_triplet_zero_matrix
+  lev <- levels(as.factor(y))
+  y <- as.numeric(y)
+  Z <- as.matrix(Z)
+  stopifnot(is.vector(y), length(y) == nrow(X))
+  varz <- unique(gsub("\\..*", "", colnames(Z)))
+  px <- ncol(X); pz <- length(varz)
+  n <- nrow(X); p <- px + pz; J <- max(y); 
+  if (is.null(Hbeta))  Hbeta <- diag(px * J) 
+  if (is.null(Hgamma)) Hgamma <- diag(pz * J) 
+  if (is.list(Hbeta))  Hbeta <- Matrix::bdiag(Hbeta)
+  if (is.list(Hgamma))  Hgamma <- Matrix::bdiag(Hgamma)
+  if (!is.matrix(Hbeta)) Hbeta <- as.matrix(Hbeta) 
+  if (!is.matrix(Hgamma)) Hgamma <- as.matrix(Hgamma) 
+  pxtilde <- ncol(Hbeta); pztilde <- ncol(Hgamma)
+  ptilde  <- pxtilde + pztilde
+  Hx <- lapply(seq_len(J), function(j) {
+   Hbeta[c((seq_len(px) - 1) * J + j), ]
+  })
+  Hz <- lapply(seq_len(J), function(j) {
+   Hgamma[c((seq_len(pz) - 1) * J + j), ]
+  })
+  
+  ymat <- model.matrix(~ -1 + as.factor(y))
+  colnames(ymat) <- lev
+  xtilde <- model.matrix(~ 0 + ymat : X)  
+
+  yZ <- c(sapply(varz, function(x) 
+    colSums(ymat * Z[, grep(x, colnames(Z))])))
+  
+  i <- 3 * seq_len(n) - 2 ## triplets for cones
+  
+  op <- OP(c(- drop(colSums(xtilde %*% Hbeta)), - drop(yZ %*% Hgamma), 
+             rep.int(1, n), double(n * J)), 
+           maximum = FALSE)
+  Ct <- stm(i, seq_len(n), rep.int(1, n), 3 * n, n)  
+  Cu <- stm(i + 2, seq_len(n), rep.int(-1, n), 3 * n, n)
+  Clist <- lapply(seq_len(J), function(j) {
+    Cx <- stm(rep(i, pxtilde), rep(seq_len(pxtilde), each = n),
+              -drop(X %*% Hx[[j]]), 3 * n, pxtilde)
+    Cz <- stm(rep(i, pztilde), rep(seq_len(pztilde), each = n), 
+              - drop(Z[, grepl(lev[j], colnames(Z))] %*% Hz[[j]]), 
+              3 * n, pztilde)
+    CC <- cbind(Cx, Cz, Ct, stzm(3 * n, n * (j - 1)), Cu, stzm(3 * n, n * (J - j)))
+  })
+  
+  C <- do.call("rbind", Clist)
+  cones <- K_expp(J * n)
+  rhs <- rep(c(0, 1, 0), n * J)
+
+  CL <- cbind(stzm(n, ptilde + n), 
+              stm(rep(seq_len(n), J), seq_len(n * J),
+                  rep.int(1, n * J), n, n * J))
+
+  constraints(op) <- rbind(C_constraint(C, cones, rhs),
+                           L_constraint(CL, 
+                                        dir = rep("<=", nrow(CL)), 
+                                        rhs =  rep(1, nrow(CL))))
+  
+  bounds(op) <- V_bound(ld = -Inf, nobj = ncol(C))
+  ROI_solve(op, solver = solver, ...)
+}
+```
+
+
+### Examples
+
+
+```{r}
+data("Fishing", package = "mlogit")
+head(Fishing)
+```
+We estimate the following model for the `Fishing` data: 
+$$
+\eta_{ij} = \beta_{0j} + \text{income}_i \beta_j
++ \text{price}_{ij} \gamma_{\text{price},j}
++ \text{catch}_{ij} \gamma_{\text{catch},j}, \quad j\in\{\text{beach, pier, boat, charter}\}
+$$
+$$
+P(\text{mode}_i = j |\cdot )= \frac{\exp(\eta_{ij})}{\sum_{l=1}^J\exp(\eta_{il})}
+$$
+
+where we fix $\beta_{0\text{beach}}=0$ and $\beta_\text{beach} = 0$.
+
+```{r}
+Fish <- dfidx(Fishing, varying = 2:9, shape = "wide", choice = "mode")
+coef(mlogit(mode ~0|income|price+catch, data = Fish))
+```
+
+```{r}
+y <- Fishing$mode
+J <- nlevels(y)
+X <- model.matrix(~ income, data = Fishing) 
+Z <- Fishing[, grep("price|catch", colnames(Fishing))]
+head(X)
+head(Z)
+
+Hbeta <- list(
+  "(Intercept)" = rbind(0, diag(J - 1)),
+  "income"      = rbind(0, diag(J - 1))
+)
+Hgamma <- list(
+  "price"      = diag(J),
+  "catch"      = diag(J)
+)
+res <- mlogit_roi_xz(X, Z, y, Hbeta, Hgamma)
+s1 <- solution(res)[1:14]
+
+names(s1) <-   c(apply(expand.grid(levels(y)[-1], colnames(X)),1, 
+      function(x) paste0(x[2], ":", x[1])), 
+  colnames(Z))
+s1
+```
+
+
+Let us have a look at the following modification:
+$$
+\eta_{ij} = \beta_{0j} + \text{income}_i \beta_j
++ \text{price}_{ij} \gamma_{\text{price}}
++ \text{catch}_{ij} \gamma_{\text{catch},j}, \quad j\in\{\text{beach, pier, boat, charter}\}
+$$
+
+where we fix $\beta_{0\text{beach}}=0$ and $\beta_\text{beach} = 0$.
+
+```{r}
+coef(mlogit(mode ~ price | income | catch, data = Fish))
+```
+
+```{r}
+Hbeta <- list(
+  "(Intercept)" = rbind(0, diag(J - 1)),
+  "income"      = rbind(0, diag(J - 1))
+)
+Hgamma <- list(
+  "price"      = rep.int(1L, J),
+  "catch"      = diag(J)
+)
+res <- mlogit_roi_xz(X, Z, y, Hbeta, Hgamma)
+s2 <- solution(res)[1:11]
+names(s2) <- c(apply(expand.grid(levels(y)[-1], colnames(X)),1, 
+      function(x) paste0(x[2], ":", x[1])), 
+  "price",  "catch.beach", "catch.pier", "catch.boat", "catch.charter")
+s2
+```
 
 
 # References
